@@ -116,7 +116,7 @@ export default function GamesCatalogPage() {
   ];
 
   return (
-    <div className="flex-1 flex flex-col bg-[#181818] text-[#f3f4f6]">
+    <div className="flex-1 flex flex-col relative z-10">
       <main className="flex-1 max-w-7xl w-full mx-auto px-6 lg:px-8 py-16 space-y-12">
         
         {/* Centralized Search Bar */}

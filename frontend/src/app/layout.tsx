@@ -18,10 +18,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ThemeBackground />
         <LanguageProvider>
           <AuthProvider>
-            <div className="min-h-screen flex flex-col bg-[#050505] text-[#f3f4f6]">
+            <div className="min-h-screen flex flex-col bg-[#050505] text-[#f3f4f6] relative">
+              <ThemeBackground />
               <Navbar />
               {children}
             </div>

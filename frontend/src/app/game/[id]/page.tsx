@@ -131,7 +131,7 @@ export default function GameDetailPage() {
   const targetUrl = game?.original_url || (game as any)?.url || '';
 
   return (
-    <div className="flex-1 flex flex-col bg-[#050505] text-[#f3f4f6]">
+    <div className="flex-1 flex flex-col relative z-10">
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-8 space-y-8">
         
         {/* Back Link */}

@@ -138,7 +138,7 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({ game }) => {
 
           <button
             onClick={handleOpenExternal}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 transition-colors border border-black/10 font-medium"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-lg white hover:bg-slate-50 text-slate-700 transition-colors border border-black/10 font-medium"
             title="Open Game in New Tab"
           >
             <ExternalLink className="w-3.5 h-3.5" />
