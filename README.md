@@ -72,4 +72,4 @@ BaGame is a universal game platform built to connect and showcase game developme
 Feel free to open an issue or submit a pull request if you want to help improve BaGame!
 
 ## 📜 License
-© 2026 One 4 All - Computer Science CS 67 Game Hub. All Rights Reserved.
+© 2026 BaGame - Computer Science CS 67 Game Hub. All Rights Reserved.
