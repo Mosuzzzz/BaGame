@@ -29,7 +29,10 @@ pub struct GameDocument {
     pub id: String,
     pub title: String,
     pub description: String,
+    #[serde(default, alias = "url")]
     pub original_url: String,
+    #[serde(default)]
+    pub embed_code: Option<String>,
     pub thumbnail_url: String,
     pub creator_id: String,
     pub display_mode: DisplayMode,
@@ -41,6 +44,7 @@ pub struct GameDocument {
 #[derive(Debug, Deserialize)]
 pub struct SubmitGameRequest {
     pub url: String,
+    pub embed_code: Option<String>,
     pub creator_id: Option<String>,
     pub custom_title: Option<String>,
     pub custom_description: Option<String>,

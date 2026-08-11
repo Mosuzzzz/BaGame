@@ -57,14 +57,14 @@ export async function getGameById(id: string): Promise<{ game: GameDocument }> {
   );
 }
 
-export async function deleteGameApi(id: string, adminPass: string): Promise<{ message: string }> {
+export async function deleteGameApi(id: string, token: string): Promise<{ message: string }> {
   return fetchWithFallback<{ message: string }>(
     `/games/${id}`,
     `/api/games/${id}`,
     {
       method: 'DELETE',
       headers: {
-        'x-admin-pass': adminPass,
+        'Authorization': `Bearer ${token}`,
       },
     }
   );

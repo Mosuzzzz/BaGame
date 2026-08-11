@@ -149,24 +149,24 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-xl rounded-2xl bg-[#0e152e] border border-sky-500/30 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-xl rounded-2xl bg-white border border-black/10 shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-sky-500/20 bg-[#111a36]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/10 bg-white">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-sky-400/40 flex items-center justify-center text-sky-300">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 border border-black/10 flex items-center justify-center text-slate-600">
               <GraduationCap className="w-4.5 h-4.5" />
             </div>
             <div>
-              <h2 className="font-extrabold text-base text-white">ส่งผลงานเกม CS 67 (URL / HTML Embed Code)</h2>
-              <p className="text-[11px] text-slate-300">วาง URL เกม หรือวางโค้ด HTML Embed (`&lt;iframe src="..."&gt;`) จาก itch.io</p>
+              <h2 className="font-semibold text-base text-slate-900">ส่งผลงานเกม</h2>
+              <p className="text-[11px] text-slate-500">วาง URL เกม หรือ HTML embed</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -176,7 +176,7 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-5">
           
           {error && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-slate-50 border border-black/10 text-slate-600 text-xs flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
@@ -187,8 +187,8 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
             
             {/* Input: Creator Name */}
             <div>
-              <label className="block text-xs font-semibold text-slate-200 mb-1 flex items-center gap-1">
-                <User className="w-3.5 h-3.5 text-sky-400" />
+              <label className="block text-xs font-medium text-slate-600 mb-1 flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-slate-500" />
                 ชื่อผู้สร้างสรรค์ผลงาน / ผู้พัฒนา (Creator / Developer Name):
               </label>
               <input
@@ -197,14 +197,14 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
                 placeholder="เช่น นายวิทยา คอมพิวเตอร์ (CS67) หรือ ชื่อทีมผู้พัฒนา"
                 value={creatorName}
                 onChange={(e) => setCreatorName(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#111a36] border border-sky-500/30 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-400"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-black/10 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400"
               />
             </div>
 
             {/* Input: Game URL or Embed Code */}
             <div>
-              <label className="block text-xs font-semibold text-slate-200 mb-1 flex items-center gap-1">
-                <Code className="w-3.5 h-3.5 text-sky-400" />
+              <label className="block text-xs font-medium text-slate-600 mb-1 flex items-center gap-1">
+                <Code className="w-3.5 h-3.5 text-slate-500" />
                 URL หรือ โค้ด HTML Embed (`&lt;iframe src="..."&gt;`):
               </label>
               <div className="space-y-2">
@@ -216,7 +216,7 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
                     placeholder="วางลิงก์ https://... หรือ วางโค้ด <iframe src=&quot;https://itch.io/embed-upload/...&quot;></iframe> จาก itch.io ที่นี่"
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#111a36] border border-sky-500/30 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-400 font-mono"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-black/10 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 font-mono"
                   />
                 </div>
 
@@ -224,14 +224,14 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
                   <button
                     type="submit"
                     disabled={isScraping || !urlInput.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/30 border border-sky-300/30"
+                    className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-black disabled:opacity-50 text-white font-medium text-xs flex items-center gap-1.5 border border-black/10"
                   >
                     {isScraping ? (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                       <Search className="w-4 h-4" />
                     )}
-                    <span>ตรวจวิเคราะห์ URL / HTML Embed</span>
+                    <span>ตรวจวิเคราะห์</span>
                   </button>
                 </div>
               </div>
@@ -241,53 +241,53 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
 
           {/* Scraped Metadata Preview Card */}
           {scrapedData && (
-            <div className="space-y-4 pt-4 border-t border-white/10">
+            <div className="space-y-4 pt-4 border-t border-black/10">
               
               {/* Status Banner */}
-              <div className="p-3 rounded-xl bg-[#162248] border border-sky-500/20 flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-200">สถานะการเล่นในเว็บ (Embed Playing Status):</span>
-                <span className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+              <div className="p-3 rounded-xl bg-slate-50 border border-black/10 flex items-center justify-between text-xs">
+                <span className="font-medium text-slate-600">Embed status:</span>
+                <span className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-white text-slate-600 font-medium border border-black/10">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   READY_FOR_IN_WEBSITE_PLAY
                 </span>
               </div>
 
               {detectedEmbedCode && (
-                <div className="p-3 rounded-xl bg-blue-600/10 border border-sky-400/30 text-sky-300 text-xs font-mono">
-                  ✨ ตรวจพบโค้ด HTML Embed และสกัด URL เล่นเกมสดเรียบร้อยแล้ว
+                <div className="p-3 rounded-xl bg-slate-50 border border-black/10 text-slate-600 text-xs font-mono">
+                  ตรวจพบ HTML embed
                 </div>
               )}
 
               {/* Editable Fields */}
               <div className="space-y-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
                     ชื่อผลงานเกม (Game Title):
                   </label>
                   <input
                     type="text"
                     value={customTitle}
                     onChange={(e) => setCustomTitle(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111a36] border border-sky-500/30 text-xs text-white focus:outline-none focus:border-sky-400"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
                     คำอธิบายผลงาน:
                   </label>
                   <textarea
                     rows={3}
                     value={customDescription}
                     onChange={(e) => setCustomDescription(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111a36] border border-sky-500/30 text-xs text-white focus:outline-none focus:border-sky-400"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
                   />
                 </div>
 
                 {/* Editable Thumbnail URL Input */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                    <ImageIcon className="w-3 h-3 text-sky-400" />
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1 flex items-center gap-1">
+                    <ImageIcon className="w-3 h-3 text-slate-500" />
                     URL รูปปกเกม (Game Cover / Thumbnail Image URL):
                   </label>
                   <input
@@ -295,13 +295,13 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
                     placeholder="ใส่ URL รูปปกเกม (https://...)"
                     value={customThumbnail}
                     onChange={(e) => setCustomThumbnail(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111a36] border border-sky-500/30 text-xs text-white focus:outline-none focus:border-sky-400"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                    <Tag className="w-3 h-3 text-sky-400" />
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1 flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-slate-500" />
                     แท็กหมวดหมู่ (คั่นด้วยจุลภาค):
                   </label>
                   <input
@@ -309,16 +309,16 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
                     value={tagsInput}
                     onChange={(e) => setTagsInput(e.target.value)}
                     placeholder="cs67, webgl, arcade, puzzle"
-                    className="w-full px-3 py-2 rounded-xl bg-[#111a36] border border-sky-500/30 text-xs text-white focus:outline-none focus:border-sky-400"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-black/10 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
                   />
                 </div>
 
                 {/* Thumbnail Live Preview */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
                     ตัวอย่างรูปปกเกมที่เลือก (Live Preview):
                   </label>
-                  <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-black/60 border border-sky-500/30 shadow-inner">
+                  <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-100 border border-black/10">
                     <img
                       src={customThumbnail || scrapedData.thumbnail_url}
                       alt="Thumbnail Preview"
@@ -338,10 +338,10 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/10 bg-[#111a36]">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-black/10 bg-white">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-[#162248] hover:bg-[#1f3066] text-slate-300 font-semibold text-xs border border-white/10"
+            className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-600 font-medium text-xs border border-black/10"
           >
             ยกเลิก
           </button>
@@ -349,14 +349,14 @@ export const SubmitGameModal: React.FC<SubmitGameModalProps> = ({
           <button
             onClick={handleSubmit}
             disabled={!scrapedData || isSubmitting}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-600 hover:from-blue-500 hover:to-sky-400 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-blue-600/30 border border-white/20"
+            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-slate-900 hover:bg-black disabled:opacity-50 text-white font-medium text-xs border border-black/10"
           >
             {isSubmitting ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <CheckCircle2 className="w-4 h-4" />
             )}
-            <span>เผยแพร่ผลงานเกม CS67</span>
+            <span>เผยแพร่</span>
           </button>
         </div>
 

@@ -125,6 +125,7 @@ async fn submit_game(
         title,
         description,
         payload.url,
+        payload.embed_code,
         scraped.thumbnail_url,
         creator_id,
         scraped.display_mode,

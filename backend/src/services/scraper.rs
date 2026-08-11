@@ -130,7 +130,7 @@ impl ScraperService {
         let description = self.extract_og_meta(&document, "og:description")
             .or_else(|| self.extract_meta_name(&document, "description"))
             .unwrap_or_else(|| {
-                "เล่นผลงานเกมนี้ผ่านแพลตฟอร์ม More Then 66 (CS 67)".to_string()
+                "เล่นผลงานเกมนี้ผ่านแพลตฟอร์ม BaGame (CS 67)".to_string()
             });
 
         // 3. Thumbnail URL Extraction
@@ -209,7 +209,7 @@ impl ScraperService {
             return relative.to_string();
         }
         base.join(relative)
-            .map(|u| u.to_string())
+            .map(|resolved: Url| resolved.to_string())
             .unwrap_or_else(|_| relative.to_string())
     }
 }
