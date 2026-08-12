@@ -113,7 +113,7 @@ export default function EditGamePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gameUrl.trim() || !coverImage) {
+    if (!gameUrl.trim() || (!coverImage && !existingThumbnailUrl)) {
       setError('Please provide both the Cover Image and Game URL/Embed.');
       return;
     }
@@ -159,7 +159,10 @@ export default function EditGamePage() {
           method: 'POST',
           body: pdfFormData,
         });
-        if (!pdfRes.ok) throw new Error('Failed to upload PDF to Cloudinary');
+        if (!pdfRes.ok) {
+          const errObj = await pdfRes.json().catch(() => ({}));
+          throw new Error(`Cloudinary Error (PDF): ${errObj?.error?.message || 'Failed to upload PDF'}`);
+        }
         const pdfData = await pdfRes.json();
         manual_url = pdfData.secure_url;
       }
