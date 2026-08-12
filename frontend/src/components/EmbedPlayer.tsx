@@ -79,6 +79,15 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({ game }) => {
     }
   };
 
+  if (!iframeUrl.trim()) {
+    return (
+      <div className="aspect-video flex items-center justify-center bg-gray-50 dark:bg-zinc-900 text-gray-500 rounded-2xl border border-gray-200 dark:border-white/10">
+        <MonitorPlay className="w-12 h-12 mb-2 opacity-50 block mx-auto" />
+        <p className="mt-2 text-sm">ไม่พบ URL สำหรับเล่นเกมนี้ (No playable URL found)</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full flex flex-col gap-2">
       {/* Minimal Toolbar */}
@@ -153,23 +162,16 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({ game }) => {
               </div>
             )}
 
-            {!iframeUrl ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-gray-500 dark:text-gray-400">
-                <MonitorPlay className="w-12 h-12 mb-3 opacity-50" />
-                <p className="text-sm font-medium">ไม่พบ URL สำหรับเล่นเกมนี้ (No playable URL found)</p>
-              </div>
-            ) : (
-              <iframe
-                key={iframeKey}
-                src={iframeUrl}
-                title={game.title}
-                sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock allow-modals"
-                allow="autoplay; gamepad; fullscreen"
-                allowFullScreen
-                onLoad={() => setIsLoading(false)}
-                onError={() => setIsLoading(false)}
-              />
-            )}
+            <iframe
+              key={iframeKey}
+              src={iframeUrl}
+              title={game.title}
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock allow-modals"
+              allow="autoplay; gamepad; fullscreen"
+              allowFullScreen
+              onLoad={() => setIsLoading(false)}
+              onError={() => setIsLoading(false)}
+            />
           </div>
         )}
       </div>
