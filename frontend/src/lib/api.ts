@@ -2,28 +2,11 @@ import { GameDocument, ScrapedMetadata, SubmitGamePayload } from '@/types/game';
 
 const RUST_BACKEND_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
 
-async function fetchWithFallback<T>(rustEndpoint: string, nextEndpoint: string, options?: RequestInit): Promise<T> {
-  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-  if (isLocalhost) {
-    try {
-      const rustRes = await fetch(`${RUST_BACKEND_BASE}${rustEndpoint}`, {
-        cache: 'no-store',
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        },
-      });
-      if (rustRes.ok) {
-        return await rustRes.json();
-      }
-    } catch (err) {
-      // Fall back to Next.js API routes when Rust server is offline
-    }
-  }
-
-  const nextRes = await fetch(nextEndpoint, {
+async function fetchFromBackend<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const url = `${RUST_BACKEND_BASE}${endpoint}`;
+  console.log(`Fetching from backend: ${url}`);
+  
+  const res = await fetch(url, {
     cache: 'no-store',
     ...options,
     headers: {
@@ -32,12 +15,12 @@ async function fetchWithFallback<T>(rustEndpoint: string, nextEndpoint: string, 
     },
   });
 
-  if (!nextRes.ok) {
-    const errorData = await nextRes.json().catch(() => ({ error: 'Network request failed' }));
-    throw new Error(errorData.error || 'API request failed');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ error: 'Network request failed' }));
+    throw new Error(errorData.error || `API request failed with status ${res.status}`);
   }
 
-  return await nextRes.json();
+  return await res.json();
 }
 
 export async function getGames(tag?: string, search?: string): Promise<{ count: number; games: GameDocument[] }> {
@@ -48,23 +31,20 @@ export async function getGames(tag?: string, search?: string): Promise<{ count: 
   
   const queryStr = params.toString() ? `?${params.toString()}` : '';
 
-  return fetchWithFallback<{ count: number; games: GameDocument[] }>(
-    `/games${queryStr}`,
-    `/api/games${queryStr}`
+  return fetchFromBackend<{ count: number; games: GameDocument[] }>(
+    `/games${queryStr}`
   );
 }
 
 export async function getGameById(id: string): Promise<{ game: GameDocument }> {
-  return fetchWithFallback<{ game: GameDocument }>(
-    `/games/${id}`,
-    `/api/games/${id}`
+  return fetchFromBackend<{ game: GameDocument }>(
+    `/games/${id}`
   );
 }
 
 export async function deleteGameApi(id: string, token: string): Promise<{ message: string }> {
-  return fetchWithFallback<{ message: string }>(
+  return fetchFromBackend<{ message: string }>(
     `/games/${id}`,
-    `/api/games/${id}`,
     {
       method: 'DELETE',
       headers: {
@@ -75,9 +55,8 @@ export async function deleteGameApi(id: string, token: string): Promise<{ messag
 }
 
 export async function scrapeUrlPreview(url: string): Promise<ScrapedMetadata> {
-  return fetchWithFallback<ScrapedMetadata>(
+  return fetchFromBackend<ScrapedMetadata>(
     `/games/scrape`,
-    `/api/games/scrape`,
     {
       method: 'POST',
       body: JSON.stringify({ url }),
@@ -86,9 +65,8 @@ export async function scrapeUrlPreview(url: string): Promise<ScrapedMetadata> {
 }
 
 export async function submitGame(payload: SubmitGamePayload): Promise<{ message: string; game: GameDocument }> {
-  return fetchWithFallback<{ message: string; game: GameDocument }>(
+  return fetchFromBackend<{ message: string; game: GameDocument }>(
     `/games/submit`,
-    `/api/games/submit`,
     {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -97,17 +75,15 @@ export async function submitGame(payload: SubmitGamePayload): Promise<{ message:
 }
 
 export async function incrementGameView(id: string): Promise<{ game: GameDocument }> {
-  return fetchWithFallback<{ game: GameDocument }>(
+  return fetchFromBackend<{ game: GameDocument }>(
     `/games/${id}/view`,
-    `/api/games/${id}/view`,
     { method: 'POST' }
   );
 }
 
 export async function incrementGameLike(id: string): Promise<{ game: GameDocument }> {
-  return fetchWithFallback<{ game: GameDocument }>(
+  return fetchFromBackend<{ game: GameDocument }>(
     `/games/${id}/like`,
-    `/api/games/${id}/like`,
     { method: 'POST' }
   );
 }
