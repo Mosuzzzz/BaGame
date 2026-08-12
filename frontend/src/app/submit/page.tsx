@@ -102,7 +102,10 @@ export default function SubmitWizardPage() {
         method: 'POST',
         body: coverFormData,
       });
-      if (!coverRes.ok) throw new Error('Failed to upload cover image to Cloudinary');
+      if (!coverRes.ok) {
+        const errObj = await coverRes.json().catch(() => ({}));
+        throw new Error(`Cloudinary Error: ${errObj?.error?.message || 'Failed to upload cover image'}`);
+      }
       const coverData = await coverRes.json();
       const custom_thumbnail_url = coverData.secure_url;
 
@@ -353,13 +356,20 @@ export default function SubmitWizardPage() {
                       </div>
                       Cover Art (ปกเกม) <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
-                    <label className="flex flex-col items-center justify-center w-full h-32 px-4 transition bg-gray-50 dark:bg-[#1a1a1a]/50 border-2 border-gray-200 dark:border-white/10 border-dashed rounded-xl appearance-none cursor-pointer hover:border-[#f97316]/50 dark:hover:border-[#d4ff33]/50 focus-within:border-[#f97316] dark:focus-within:border-[#d4ff33]">
-                      <span className="flex flex-col items-center space-y-2">
-                        <UploadCloud className="w-6 h-6 text-[#f97316] dark:text-[#d4ff33]" />
-                        <span className="font-medium text-sm text-gray-700 dark:text-zinc-300">
-                          {coverImage ? coverImage.name : 'Click to upload cover image'}
+                    <label className="relative flex flex-col items-center justify-center w-full h-48 px-4 transition bg-gray-50 dark:bg-[#1a1a1a]/50 border-2 border-gray-200 dark:border-white/10 border-dashed rounded-xl appearance-none cursor-pointer hover:border-[#f97316]/50 dark:hover:border-[#d4ff33]/50 focus-within:border-[#f97316] dark:focus-within:border-[#d4ff33] overflow-hidden group">
+                      {coverImage && (
+                        <img 
+                          src={URL.createObjectURL(coverImage)} 
+                          alt="Cover Preview" 
+                          className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-40 transition-opacity duration-300"
+                        />
+                      )}
+                      <span className="flex flex-col items-center space-y-2 relative z-10">
+                        <UploadCloud className="w-6 h-6 text-[#f97316] dark:text-[#d4ff33] drop-shadow-md" />
+                        <span className="font-medium text-sm text-gray-900 dark:text-white bg-white/60 dark:bg-black/60 px-3 py-1 rounded-lg backdrop-blur-sm">
+                          {coverImage ? 'Click to change cover image' : 'Click to upload cover image'}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-zinc-500">PNG, JPG up to 5MB</span>
+                        <span className="text-xs text-gray-700 dark:text-zinc-200 bg-white/60 dark:bg-black/60 px-2 py-0.5 rounded backdrop-blur-sm">PNG, JPG up to 5MB</span>
                       </span>
                       <input
                         type="file"
