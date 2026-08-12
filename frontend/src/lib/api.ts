@@ -8,6 +8,7 @@ async function fetchWithFallback<T>(rustEndpoint: string, nextEndpoint: string, 
   if (isLocalhost) {
     try {
       const rustRes = await fetch(`${RUST_BACKEND_BASE}${rustEndpoint}`, {
+        cache: 'no-store',
         ...options,
         headers: {
           'Content-Type': 'application/json',
@@ -23,6 +24,7 @@ async function fetchWithFallback<T>(rustEndpoint: string, nextEndpoint: string, 
   }
 
   const nextRes = await fetch(nextEndpoint, {
+    cache: 'no-store',
     ...options,
     headers: {
       'Content-Type': 'application/json',
