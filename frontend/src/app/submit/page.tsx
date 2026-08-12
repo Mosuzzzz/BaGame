@@ -104,7 +104,8 @@ export default function SubmitWizardPage() {
         formData.append('website_url', websiteUrl.trim());
       }
 
-      const res = await fetch('http://localhost:8000/api/games/upload', {
+      const RUST_BACKEND_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+      const res = await fetch(`${RUST_BACKEND_BASE}/games/upload`, {
         method: 'POST',
         headers: {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
