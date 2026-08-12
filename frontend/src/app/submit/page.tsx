@@ -87,30 +87,63 @@ export default function SubmitWizardPage() {
 
       const parsed = parseUrlOrEmbed(gameUrl);
 
-      const formData = new FormData();
-      formData.append('title', title);
-      formData.append('description', description);
-      formData.append('tags', selectedGenres.join(','));
-      formData.append('creator_id', user?.displayName || 'Anonymous Developer');
-      formData.append('cover_image', coverImage);
-      formData.append('url', parsed.url);
-      if (parsed.embedCode) {
-        formData.append('embed_code', parsed.embedCode);
-      }
-      if (manualPdf) {
-        formData.append('manual_pdf', manualPdf);
-      }
-      if (websiteUrl.trim()) {
-        formData.append('website_url', websiteUrl.trim());
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+      
+      if (!cloudName || !uploadPreset) {
+        throw new Error('Cloudinary config is missing in .env.local');
       }
 
+      // Upload Cover Image
+      const coverFormData = new FormData();
+      coverFormData.append('file', coverImage);
+      coverFormData.append('upload_preset', uploadPreset);
+      const coverRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+        method: 'POST',
+        body: coverFormData,
+      });
+      if (!coverRes.ok) throw new Error('Failed to upload cover image to Cloudinary');
+      const coverData = await coverRes.json();
+      const custom_thumbnail_url = coverData.secure_url;
+
+      // Upload PDF if exists
+      let manual_url = undefined;
+      if (manualPdf) {
+        const pdfFormData = new FormData();
+        pdfFormData.append('file', manualPdf);
+        pdfFormData.append('upload_preset', uploadPreset);
+        const pdfRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+          method: 'POST',
+          body: pdfFormData,
+        });
+        if (!pdfRes.ok) throw new Error('Failed to upload PDF to Cloudinary');
+        const pdfData = await pdfRes.json();
+        manual_url = pdfData.secure_url;
+      }
+
+      const payload = {
+        title,
+        description,
+        tags: selectedGenres.join(','), // Wait, custom_tags in backend is Vec<String> or string? In SubmitGameRequest it's Option<Vec<String>> but let's see. Let's send array.
+        custom_tags: selectedGenres,
+        creator_id: user?.displayName || 'Anonymous Developer',
+        url: parsed.url,
+        embed_code: parsed.embedCode,
+        custom_thumbnail_url,
+        manual_url,
+        website_url: websiteUrl.trim() || undefined,
+        custom_title: title,
+        custom_description: description,
+      };
+
       const RUST_BACKEND_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
-      const res = await fetch(`${RUST_BACKEND_BASE}/games/upload`, {
+      const res = await fetch(`${RUST_BACKEND_BASE}/games/submit`, {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: formData,
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {

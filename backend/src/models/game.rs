@@ -53,6 +53,9 @@ pub struct SubmitGameRequest {
     pub custom_title: Option<String>,
     pub custom_description: Option<String>,
     pub custom_tags: Option<Vec<String>>,
+    pub custom_thumbnail_url: Option<String>,
+    pub manual_url: Option<String>,
+    pub website_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

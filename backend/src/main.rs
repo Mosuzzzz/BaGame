@@ -13,7 +13,7 @@ use models::game::{DisplayMode, ScrapedMetadataResponse, SubmitGameRequest};
 use serde::Deserialize;
 use services::db::DbService;
 use services::scraper::ScraperService;
-use services::upload::UploadService;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -24,7 +24,6 @@ use base64::Engine;
 pub struct AppState {
     pub db: DbService,
     pub scraper: ScraperService,
-    pub upload: UploadService,
 }
 
 #[tokio::main]
@@ -41,9 +40,7 @@ async fn main() {
 
     let db = DbService::new(&database_url).await;
     let scraper = ScraperService::new();
-    let upload = UploadService::new();
-
-    let state = Arc::new(AppState { db, scraper, upload });
+    let state = Arc::new(AppState { db, scraper });
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -56,7 +53,6 @@ async fn main() {
         .route("/api/games/:id", get(get_game))
         .route("/api/games/scrape", post(scrape_url_preview))
         .route("/api/games/submit", post(submit_game))
-        .route("/api/games/upload", post(upload_game))
         .route("/api/games/:id", delete(delete_game))
         .route("/api/games/:id/view", post(increment_view))
         .route("/api/games/:id/like", post(increment_like))
@@ -157,17 +153,19 @@ async fn submit_game(
     let tags = payload.custom_tags.unwrap_or(scraped.tags);
     let creator_id = payload.creator_id.unwrap_or_else(|| "community_guest".to_string());
 
+    let thumbnail_url = payload.custom_thumbnail_url.unwrap_or(scraped.thumbnail_url);
+
     let game = state.db.insert_game(
         title,
         description,
         payload.url,
         payload.embed_code,
-        scraped.thumbnail_url,
+        thumbnail_url,
         creator_id,
         scraped.display_mode,
         tags,
-        None,
-        None, // website_url
+        payload.manual_url,
+        payload.website_url,
     ).await?;
 
     Ok(Json(serde_json::json!({
@@ -192,63 +190,7 @@ async fn increment_like(
     Ok(Json(serde_json::json!({ "game": game })))
 }
 
-async fn upload_game(
-    State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
-    multipart: Multipart,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
-    if auth.is_none() || !auth.unwrap().starts_with("Bearer ") {
-        return Err(AppError::Unauthorized("Missing or invalid authorization token".to_string()));
-    }
-    
-    let token = auth.unwrap().trim_start_matches("Bearer ");
-    let username = get_username_from_token(token).ok_or_else(|| {
-        AppError::Unauthorized("Invalid token payload".to_string())
-    })?;
 
-    let mut upload_res = state.upload.process_multipart(multipart).await?;
-    // Override creator_id to match the authenticated user
-    upload_res.creator_id = username;
-
-    let url = upload_res.original_url.trim();
-    if url.is_empty() {
-        return Err(AppError::InvalidUrl("URL cannot be empty".to_string()));
-    }
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err(AppError::InvalidUrl("URL must start with http:// or https://".to_string()));
-    }
-    if url.contains("itch.io") && !url.contains("itch.io/embed") && !url.contains("itch.io/html") {
-        return Err(AppError::InvalidUrl("สำหรับ itch.io โปรดใช้ Embed URL (เช่น https://itch.io/embed-upload/...) หรือโค้ด iframe แทนหน้าเกมปกติ".to_string()));
-    }
-
-    if let Some(embed) = &upload_res.embed_code {
-        let embed_trim = embed.trim();
-        if embed_trim.starts_with("<iframe") {
-            if !embed_trim.contains("src=\"") && !embed_trim.contains("src='") {
-                return Err(AppError::InvalidUrl("ไม่สามารถดึง URL จากโค้ด iframe ได้ กรุณาตรวจสอบว่ามี src attribute".to_string()));
-            }
-        }
-    }
-
-    let game = state.db.insert_game(
-        upload_res.title.unwrap_or_else(|| "Uploaded Game".to_string()),
-        upload_res.description.unwrap_or_else(|| "No description provided.".to_string()),
-        upload_res.original_url,
-        upload_res.embed_code,
-        upload_res.thumbnail_url,
-        upload_res.creator_id,
-        DisplayMode::Embedded,
-        upload_res.tags,
-        upload_res.manual_url,
-        upload_res.website_url,
-    ).await?;
-
-    Ok(Json(serde_json::json!({
-        "message": "Game uploaded successfully",
-        "game": game
-    })))
-}
 
 async fn delete_game(
     State(state): State<Arc<AppState>>,
