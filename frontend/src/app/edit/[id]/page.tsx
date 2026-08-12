@@ -166,8 +166,8 @@ export default function EditGamePage() {
       };
 
       const RUST_BACKEND_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
-      const res = await fetch(`${RUST_BACKEND_BASE}/games/submit`, {
-        method: 'POST',
+      const res = await fetch(`${RUST_BACKEND_BASE}/games/${id}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
