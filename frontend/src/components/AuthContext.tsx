@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, signInWithPopup, signOut as fbSignOut, onAuthStateChanged, getRedirectResult, setPersistence, inMemoryPersistence } from 'firebase/auth';
+import { User, signInWithPopup, signInWithRedirect, signOut as fbSignOut, onAuthStateChanged, getRedirectResult, setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
 
 interface AuthContextType {
@@ -85,7 +85,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // 
       
-      const result = await signInWithPopup(auth, googleProvider);
+      let result;
+      try {
+        result = await signInWithPopup(auth, googleProvider);
+      } catch (popupError: any) {
+        console.warn('Popup failed, falling back to redirect:', popupError);
+        // Fallback for COOP / Mobile environments
+        await signInWithRedirect(auth, googleProvider);
+        return; // Redirect will navigate away
+      }
       
       // Strict verification (Only allow RMUTI)
       const email = result.user.email || '';
@@ -99,7 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(jwtToken);
     } catch (error: any) {
       if (error.message !== 'Unauthorized domain') {
-        console.warn('Google Sign-In popup failed:', error);
+        console.error('Google Sign-In failed:', error);
       }
       setLoading(false);
     }
