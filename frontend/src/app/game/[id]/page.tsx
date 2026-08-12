@@ -20,6 +20,7 @@ import {
   Gamepad2,
   GraduationCap,
   Trash2,
+  Edit2,
   Link as LinkIcon,
 } from 'lucide-react';
 
@@ -241,6 +242,17 @@ export default function GameDetailPage() {
                   >
                     <GraduationCap className="w-4 h-4" />
                   </a>
+                )}
+
+                {/* Edit Button (Only for owner/admin) */}
+                {user && (user.displayName === game.creator_id || user.displayName === 'Admin') && (
+                  <Link
+                    href={`/edit/${game.id}`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 shadow-sm ml-2"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Edit
+                  </Link>
                 )}
 
                 {/* Delete Button */}

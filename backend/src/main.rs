@@ -5,11 +5,11 @@ mod services;
 use axum::{
     extract::{Multipart, Path, Query, State, DefaultBodyLimit},
     http::Method,
-    routing::{get, post, delete},
+    routing::{get, post, delete, put},
     Json, Router,
 };
 use error::AppError;
-use models::game::{DisplayMode, ScrapedMetadataResponse, SubmitGameRequest};
+use models::game::{DisplayMode, ScrapedMetadataResponse, EditGameRequest, SubmitGameRequest};
 use serde::Deserialize;
 use services::db::DbService;
 use services::scraper::ScraperService;
@@ -44,7 +44,7 @@ async fn main() {
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
-        .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])
+        .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::OPTIONS])
         .allow_headers(Any);
 
     let app = Router::new()
@@ -54,6 +54,7 @@ async fn main() {
         .route("/api/games/scrape", post(scrape_url_preview))
         .route("/api/games/submit", post(submit_game))
         .route("/api/games/:id", delete(delete_game))
+        .route("/api/games/:id", put(edit_game))
         .route("/api/games/:id/view", post(increment_view))
         .route("/api/games/:id/like", post(increment_like))
         .nest_service("/public", ServeDir::new("public"))
@@ -190,7 +191,44 @@ async fn increment_like(
     Ok(Json(serde_json::json!({ "game": game })))
 }
 
+async fn edit_game(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Path(id): Path<String>,
+    Json(payload): Json<EditGameRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
+    if auth.is_none() || !auth.unwrap().starts_with("Bearer ") {
+        return Err(AppError::Unauthorized("Missing or invalid authorization token".to_string()));
+    }
+    
+    let token = auth.unwrap().trim_start_matches("Bearer ");
+    let username = get_username_from_token(token).ok_or_else(|| {
+        AppError::Unauthorized("Invalid token payload".to_string())
+    })?;
 
+    let game = state.db.get_game(&id).await?;
+    if game.creator_id != username && username != "Admin" {
+        return Err(AppError::Unauthorized("You do not have permission to edit this game".to_string()));
+    }
+
+    let updated_game = state.db.update_game(
+        &id,
+        payload.custom_title,
+        payload.custom_description,
+        payload.url,
+        Some(payload.embed_code),
+        payload.custom_thumbnail_url,
+        payload.custom_tags,
+        Some(payload.manual_url),
+        Some(payload.website_url),
+    ).await?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Game updated successfully",
+        "game": updated_game
+    })))
+}
 
 async fn delete_game(
     State(state): State<Arc<AppState>>,

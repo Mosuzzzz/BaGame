@@ -176,7 +176,85 @@ impl DbService {
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-        self.get_game(&id).await
+        Ok(self.get_game(&id).await?)
+    }
+
+    pub async fn update_game(
+        &self,
+        id: &str,
+        title: Option<String>,
+        description: Option<String>,
+        original_url: Option<String>,
+        embed_code: Option<Option<String>>,
+        thumbnail_url: Option<String>,
+        tags: Option<Vec<String>>,
+        manual_url: Option<Option<String>>,
+        website_url: Option<Option<String>>,
+    ) -> Result<GameDocument, AppError> {
+        let mut qb = sqlx::QueryBuilder::new("UPDATE games SET ");
+        let mut has_updates = false;
+
+        let mut add_comma = |qb: &mut sqlx::QueryBuilder<'_, _>| {
+            if has_updates {
+                qb.push(", ");
+            }
+            has_updates = true;
+        };
+
+        if let Some(t) = title {
+            add_comma(&mut qb);
+            qb.push("title = ");
+            qb.push_bind(t);
+        }
+        if let Some(d) = description {
+            add_comma(&mut qb);
+            qb.push("description = ");
+            qb.push_bind(d);
+        }
+        if let Some(u) = original_url {
+            add_comma(&mut qb);
+            qb.push("original_url = ");
+            qb.push_bind(u);
+        }
+        if let Some(ec) = embed_code {
+            add_comma(&mut qb);
+            qb.push("embed_code = ");
+            qb.push_bind(ec);
+        }
+        if let Some(tu) = thumbnail_url {
+            add_comma(&mut qb);
+            qb.push("thumbnail_url = ");
+            qb.push_bind(tu);
+        }
+        if let Some(tg) = tags {
+            add_comma(&mut qb);
+            qb.push("tags = ");
+            qb.push_bind(tg);
+        }
+        if let Some(mu) = manual_url {
+            add_comma(&mut qb);
+            qb.push("manual_url = ");
+            qb.push_bind(mu);
+        }
+        if let Some(wu) = website_url {
+            add_comma(&mut qb);
+            qb.push("website_url = ");
+            qb.push_bind(wu);
+        }
+
+        if !has_updates {
+            return self.get_game(id).await;
+        }
+
+        qb.push(" WHERE id = ");
+        qb.push_bind(id);
+
+        qb.build()
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        self.get_game(id).await
     }
 
     pub async fn delete_game(&self, id: &str) -> Result<GameDocument, AppError> {

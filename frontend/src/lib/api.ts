@@ -74,6 +74,19 @@ export async function submitGame(payload: SubmitGamePayload): Promise<{ message:
   );
 }
 
+export async function editGame(id: string, payload: Partial<SubmitGamePayload>, token?: string): Promise<{ message: string; game: GameDocument }> {
+  return fetchFromBackend<{ message: string; game: GameDocument }>(
+    `/games/${id}`,
+    {
+      method: 'PUT',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
 export async function incrementGameView(id: string): Promise<{ game: GameDocument }> {
   return fetchFromBackend<{ game: GameDocument }>(
     `/games/${id}/view`,
