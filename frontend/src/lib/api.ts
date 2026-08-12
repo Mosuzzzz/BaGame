@@ -1,6 +1,6 @@
 import { GameDocument, ScrapedMetadata, SubmitGamePayload } from '@/types/game';
 
-const RUST_BACKEND_BASE = 'http://127.0.0.1:8000/api';
+const RUST_BACKEND_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
 
 async function fetchWithFallback<T>(rustEndpoint: string, nextEndpoint: string, options?: RequestInit): Promise<T> {
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
