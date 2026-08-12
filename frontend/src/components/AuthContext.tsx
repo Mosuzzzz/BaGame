@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, signInWithPopup, signInWithRedirect, signOut as fbSignOut, onAuthStateChanged, getRedirectResult, setPersistence, inMemoryPersistence } from 'firebase/auth';
+import { User, signInWithPopup, signInWithRedirect, signOut as fbSignOut, onAuthStateChanged, getRedirectResult, setPersistence, inMemoryPersistence, browserSessionPersistence } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
 
 interface AuthContextType {
@@ -30,6 +30,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Check for redirect result first to handle domain validation
     getRedirectResult(auth).then(async (result) => {
+      // Temporarily disabled domain check for debugging
+      /*
       if (result && result.user) {
         const email = result.user.email || '';
         if (!email.endsWith('rmuti.ac.th')) {
@@ -37,6 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           alert('กรุณาใช้บัญชีอีเมลของมหาวิทยาลัย (เช่น @rmuti.ac.th) เพื่อเข้าสู่ระบบ');
         }
       }
+      */
     }).catch(err => console.warn('Redirect result error:', err));
 
     // 2. Otherwise listen to real Firebase Auth changes
@@ -44,7 +47,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(currentUser);
       if (currentUser) {
         try {
-          // Double check domain on auth state change just to be safe
+          // Temporarily disabled domain check for debugging
+          /*
           const email = currentUser.email || '';
           if (!email.endsWith('rmuti.ac.th')) {
             await fbSignOut(auth);
@@ -53,6 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setLoading(false);
             return;
           }
+          */
 
           const jwtToken = await currentUser.getIdToken();
           setToken(jwtToken);
@@ -77,38 +82,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     try {
       setLoading(true);
-      // Optional UI hint for Google to prefer rmuti.ac.th and force account selection
-      googleProvider.setCustomParameters({ 
-        hd: 'rmuti.ac.th',
-        prompt: 'select_account' 
-      });
       
-      // 
+      // Use Session Storage to bypass IndexedDB 'Database is closing/hidden' errors
+      await setPersistence(auth, browserSessionPersistence);
       
-      let result;
-      try {
-        result = await signInWithPopup(auth, googleProvider);
-      } catch (popupError: any) {
-        console.warn('Popup failed, falling back to redirect:', popupError);
-        // Fallback for COOP / Mobile environments
-        await signInWithRedirect(auth, googleProvider);
-        return; // Redirect will navigate away
-      }
-      
-      // Strict verification (Only allow RMUTI)
-      const email = result.user.email || '';
-      if (!email.endsWith('rmuti.ac.th')) {
-        await fbSignOut(auth); // Sign them back out
-        alert('กรุณาใช้บัญชีอีเมลของมหาวิทยาลัย (เช่น @rmuti.ac.th) เพื่อเข้าสู่ระบบ');
-        throw new Error('Unauthorized domain');
-      }
-
+      const result = await signInWithPopup(auth, googleProvider);
       const jwtToken = await result.user.getIdToken();
       setToken(jwtToken);
     } catch (error: any) {
-      if (error.message !== 'Unauthorized domain') {
-        console.error('Google Sign-In failed:', error);
-      }
+      console.error('Google Sign-In failed:', error);
+      alert('Login Failed: ' + error.message);
+    } finally {
       setLoading(false);
     }
   };
