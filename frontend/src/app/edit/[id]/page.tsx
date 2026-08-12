@@ -36,6 +36,7 @@ export default function EditGamePage() {
         setSelectedGenres(game.tags);
         setGameUrl(game.original_url || '');
         setWebsiteUrl(game.website_url || '');
+        setManualUrl(game.manual_url || '');
         setExistingThumbnailUrl(game.thumbnail_url);
       } catch (err) {
         console.error(err);
@@ -81,7 +82,7 @@ export default function EditGamePage() {
   const [description, setDescription] = useState('');
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [gameUrl, setGameUrl] = useState('');
-  const [manualPdf, setManualPdf] = useState<File | null>(null);
+  const [manualUrl, setManualUrl] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
 
   const genres = [
@@ -149,24 +150,6 @@ export default function EditGamePage() {
         custom_thumbnail_url = coverData.secure_url;
       }
 
-      // Upload PDF if exists
-      let manual_url = undefined;
-      if (manualPdf) {
-        const pdfFormData = new FormData();
-        pdfFormData.append('file', manualPdf);
-        pdfFormData.append('upload_preset', uploadPreset);
-        const pdfRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-          method: 'POST',
-          body: pdfFormData,
-        });
-        if (!pdfRes.ok) {
-          const errObj = await pdfRes.json().catch(() => ({}));
-          throw new Error(`Cloudinary Error (PDF): ${errObj?.error?.message || 'Failed to upload PDF'}`);
-        }
-        const pdfData = await pdfRes.json();
-        manual_url = pdfData.secure_url;
-      }
-
       const payload = {
         title,
         description,
@@ -176,7 +159,7 @@ export default function EditGamePage() {
         url: parsed.url,
         embed_code: parsed.embedCode,
         custom_thumbnail_url,
-        manual_url,
+        manual_url: manualUrl.trim() || undefined,
         website_url: websiteUrl.trim() || undefined,
         custom_title: title,
         custom_description: description,
@@ -452,28 +435,25 @@ export default function EditGamePage() {
                     </div>
                   </div>
 
-                  {/* Game Manual (PDF) */}
+                  {/* Game Manual (URL) */}
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-[#f97316] dark:text-[#d4ff33] uppercase tracking-widest flex items-center gap-2">
                       <div className="w-4 h-4 bg-[#f97316]/10 dark:bg-[#d4ff33]/20 rounded flex items-center justify-center">
                         <LinkIcon className="w-2.5 h-2.5 text-[#f97316] dark:text-[#d4ff33]" />
                       </div>
-                      Game Manual (คู่มือ) <span className="text-gray-400 dark:text-zinc-500">(Optional)</span>
+                      Game Manual Link (คู่มือ) <span className="text-gray-400 dark:text-zinc-500">(Optional)</span>
                     </label>
-                    <label className="flex flex-col items-center justify-center w-full h-24 px-4 transition bg-gray-50 dark:bg-[#1a1a1a]/50 border-2 border-gray-200 dark:border-white/10 border-dashed rounded-xl appearance-none cursor-pointer hover:border-[#f97316]/50 dark:hover:border-[#d4ff33]/50 focus-within:border-[#f97316] dark:focus-within:border-[#d4ff33]">
-                      <span className="flex flex-col items-center space-y-1">
-                        <span className="font-medium text-sm text-gray-700 dark:text-zinc-300">
-                          {manualPdf ? manualPdf.name : 'Click to upload PDF manual'}
-                        </span>
-                        <span className="text-xs text-gray-500 dark:text-zinc-500">PDF up to 10MB</span>
-                      </span>
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        onChange={(e) => setManualPdf(e.target.files?.[0] || null)}
-                        className="hidden"
-                      />
-                    </label>
+                    <div className="flex items-center gap-3 w-full bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 focus-within:border-[#f97316] dark:focus-within:border-[#d4ff33] rounded-xl p-3 pl-4 transition-colors">
+                      <div className="flex-1">
+                        <input
+                          type="url"
+                          placeholder="Paste Google Drive link or PDF URL"
+                          value={manualUrl}
+                          onChange={(e) => setManualUrl(e.target.value)}
+                          className="w-full bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-600 focus:outline-none"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Website URL */}
