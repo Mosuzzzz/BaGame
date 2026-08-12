@@ -44,6 +44,8 @@ export async function getGames(tag?: string, search?: string): Promise<{ count: 
   const params = new URLSearchParams();
   if (tag) params.append('tag', tag);
   if (search) params.append('search', search);
+  params.append('_t', Date.now().toString()); // Cache buster to force fresh data
+  
   const queryStr = params.toString() ? `?${params.toString()}` : '';
 
   return fetchWithFallback<{ count: number; games: GameDocument[] }>(
