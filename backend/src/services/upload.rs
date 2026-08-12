@@ -71,14 +71,16 @@ impl UploadService {
                 
                 let cover_path = self.base_dir.join("covers").join(format!("{}.{}", game_id, ext));
                 fs::write(&cover_path, &data).unwrap();
-                thumbnail_url = format!("http://localhost:8000/public/covers/{}.{}", game_id, ext);
+                let base_url = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:10000".to_string());
+                thumbnail_url = format!("{}/public/covers/{}.{}", base_url, game_id, ext);
             } else if name == "manual_pdf" {
                 let _file_name = field.file_name().unwrap_or("manual.pdf").to_string();
                 let data = field.bytes().await.unwrap();
                 
                 let manual_path = self.base_dir.join("manuals").join(format!("{}.pdf", game_id));
                 fs::write(&manual_path, &data).unwrap();
-                manual_url = Some(format!("http://localhost:8000/public/manuals/{}.pdf", game_id));
+                let base_url = std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:10000".to_string());
+                manual_url = Some(format!("{}/public/manuals/{}.pdf", base_url, game_id));
             }
         }
 
