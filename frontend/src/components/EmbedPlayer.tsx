@@ -146,22 +146,30 @@ export const EmbedPlayer: React.FC<EmbedPlayerProps> = ({ game }) => {
         ) : (
           /* EMBEDDED MODE SANDBOXED IFRAME */
           <div className="ratio-16-9 bg-gray-100 dark:bg-[#0d0d0d] border border-gray-200 dark:border-white/10 shadow-lg dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-            {isLoading && (
+            {isLoading && iframeUrl && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/95 dark:bg-black/90 backdrop-blur-sm transition-colors">
                 <div className="w-10 h-10 border-2 border-gray-300 dark:border-gray-600 border-t-gray-600 dark:border-t-gray-300 rounded-full animate-spin mb-3" />
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Loading...</p>
               </div>
             )}
 
-            <iframe
-              key={iframeKey}
-              src={iframeUrl}
-              title={game.title}
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock allow-modals"
-              allow="autoplay; gamepad; fullscreen"
-              onLoad={() => setIsLoading(false)}
-              onError={() => setIsLoading(false)}
-            />
+            {!iframeUrl ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-gray-500 dark:text-gray-400">
+                <MonitorPlay className="w-12 h-12 mb-3 opacity-50" />
+                <p className="text-sm font-medium">ไม่พบ URL สำหรับเล่นเกมนี้ (No playable URL found)</p>
+              </div>
+            ) : (
+              <iframe
+                key={iframeKey}
+                src={iframeUrl}
+                title={game.title}
+                sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-pointer-lock allow-modals"
+                allow="autoplay; gamepad; fullscreen"
+                allowFullScreen
+                onLoad={() => setIsLoading(false)}
+                onError={() => setIsLoading(false)}
+              />
+            )}
           </div>
         )}
       </div>

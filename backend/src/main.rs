@@ -125,6 +125,26 @@ async fn submit_game(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SubmitGameRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let url = payload.url.trim();
+    if url.is_empty() {
+        return Err(AppError::InvalidUrl("URL cannot be empty".to_string()));
+    }
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(AppError::InvalidUrl("URL must start with http:// or https://".to_string()));
+    }
+    if url.contains("itch.io") && !url.contains("itch.io/embed") && !url.contains("itch.io/html") {
+        return Err(AppError::InvalidUrl("สำหรับ itch.io โปรดใช้ Embed URL (เช่น https://itch.io/embed-upload/...) หรือโค้ด iframe แทนหน้าเกมปกติ".to_string()));
+    }
+
+    if let Some(embed) = &payload.embed_code {
+        let embed_trim = embed.trim();
+        if embed_trim.starts_with("<iframe") {
+            if !embed_trim.contains("src=\"") && !embed_trim.contains("src='") {
+                return Err(AppError::InvalidUrl("ไม่สามารถดึง URL จากโค้ด iframe ได้ กรุณาตรวจสอบว่ามี src attribute".to_string()));
+            }
+        }
+    }
+
     let scraped = state.scraper.scrape(&payload.url).await?;
 
     let title = payload.custom_title.unwrap_or(scraped.title);
@@ -185,6 +205,26 @@ async fn upload_game(
     let mut upload_res = state.upload.process_multipart(multipart).await?;
     // Override creator_id to match the authenticated user
     upload_res.creator_id = username;
+
+    let url = upload_res.original_url.trim();
+    if url.is_empty() {
+        return Err(AppError::InvalidUrl("URL cannot be empty".to_string()));
+    }
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(AppError::InvalidUrl("URL must start with http:// or https://".to_string()));
+    }
+    if url.contains("itch.io") && !url.contains("itch.io/embed") && !url.contains("itch.io/html") {
+        return Err(AppError::InvalidUrl("สำหรับ itch.io โปรดใช้ Embed URL (เช่น https://itch.io/embed-upload/...) หรือโค้ด iframe แทนหน้าเกมปกติ".to_string()));
+    }
+
+    if let Some(embed) = &upload_res.embed_code {
+        let embed_trim = embed.trim();
+        if embed_trim.starts_with("<iframe") {
+            if !embed_trim.contains("src=\"") && !embed_trim.contains("src='") {
+                return Err(AppError::InvalidUrl("ไม่สามารถดึง URL จากโค้ด iframe ได้ กรุณาตรวจสอบว่ามี src attribute".to_string()));
+            }
+        }
+    }
 
     let game = state.db.insert_game(
         upload_res.title.unwrap_or_else(|| "Uploaded Game".to_string()),
