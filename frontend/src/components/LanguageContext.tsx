@@ -38,6 +38,27 @@ const translations: Translations = {
   // Footer
   footerDesc: { th: 'สาขาวิทยาการคอมพิวเตอร์ รุ่น 18', en: 'Computer Science, Generation 18' },
   footerRights: { th: 'สงวนลิขสิทธิ์', en: 'All Rights Reserved' },
+  // Game Details Page
+  createdBy: { th: 'สร้างโดย', en: 'Created by' },
+  studentCS67: { th: 'นิสิต CS 67', en: 'CS 67 Student' },
+  playTimes: { th: 'ครั้งที่เล่น', en: 'play times' },
+  likeBtn: { th: 'ชื่นชอบ', en: 'Like' },
+  shareBtn: { th: 'แชร์ผลงานเกม', en: 'Share Game' },
+  websiteBtn: { th: 'ไปที่เว็บไซต์', en: 'Visit Website' },
+  manualBtn: { th: 'อ่านคู่มือเกม', en: 'Game Manual' },
+  deleteBtn: { th: 'ลบเกมนี้ออกจากระบบ', en: 'Delete Game' },
+  descTitle: { th: 'รายละเอียดผลงาน', en: 'Description' },
+  tagsTitle: { th: 'หมวดหมู่ & แท็ก', en: 'Categories & Tags' },
+  backBtn: { th: 'กลับหน้าหลัก', en: 'Back to Home' },
+  gameNotFoundTitle: { th: 'ไม่พบผลงานเกมที่ระบุ', en: 'Game Not Found' },
+  gameNotFoundDesc: { th: 'ไม่พบ ID ผลงานเกมนี้ในระบบ BaGame หรือเกมถูกลบออกไปแล้ว', en: 'Game ID not found or the game has been deleted.' },
+  noTags: { th: 'ไม่มีแท็ก', en: 'No tags' },
+  linkCopied: { th: 'คัดลอกลิงก์ผลงานเกมเรียบร้อยแล้ว!', en: 'Game link copied to clipboard!' },
+  // Embed Player
+  fullscreenMode: { th: 'โหมดเต็มหน้าจอ', en: 'Fullscreen Mode' },
+  fullscreen: { th: 'เต็มหน้าจอ', en: 'Fullscreen' },
+  openGameNewTab: { th: 'เปิดเกมในแท็บใหม่', en: 'Open Game in New Tab' },
+  openLink: { th: 'เปิดลิงก์', en: 'Open link' },
 };
 
 interface LanguageContextType {

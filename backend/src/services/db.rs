@@ -1,134 +1,134 @@
+use sqlx::{postgres::PgPoolOptions, PgPool, Row};
+use std::time::Duration;
 use crate::error::AppError;
 use crate::models::game::{DisplayMode, GameDocument, GameMetrics};
-use chrono::Utc;
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct DbService {
-    store: Arc<RwLock<HashMap<String, GameDocument>>>,
-    file_path: PathBuf,
+    pool: PgPool,
 }
 
 impl DbService {
-    pub fn new(file_path: PathBuf) -> Self {
-        let db = Self {
-            store: Arc::new(RwLock::new(HashMap::new())),
-            file_path,
-        };
-
-        db.load_or_seed();
-        db
-    }
-
-    fn load_or_seed(&self) {
-        if self.file_path.exists() {
-            if let Ok(content) = fs::read_to_string(&self.file_path) {
-                if let Ok(games) = serde_json::from_str::<Vec<GameDocument>>(&content) {
-                    let mut lock = self.store.write().unwrap();
-                    for g in games {
-                        lock.insert(g.id.clone(), g);
-                    }
-                    tracing::info!("Loaded {} games from database file", lock.len());
-                    return;
+    pub async fn new(database_url: &str) -> Self {
+        let pool = loop {
+            match PgPoolOptions::new()
+                .max_connections(5)
+                .acquire_timeout(Duration::from_secs(3))
+                .connect(database_url)
+                .await
+            {
+                Ok(p) => {
+                    tracing::info!("Connected to PostgreSQL successfully");
+                    break p;
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to connect to DB, retrying in 2s... ({})", e);
+                    tokio::time::sleep(Duration::from_secs(2)).await;
                 }
             }
-        }
+        };
 
-        // Default Seed Games
-        let seeds = vec![
-            GameDocument {
-                id: "seed-2048".to_string(),
-                title: "2048 Web Edition".to_string(),
-                description: "Join the numbers and get to the 2048 tile! Addictive mathematical puzzle game.".to_string(),
-                original_url: "https://play2048.co/".to_string(),
-                embed_code: Some(r#"<iframe src="https://play2048.co/"></iframe>"#.to_string()),
-                thumbnail_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80".to_string(),
-                creator_id: "system_admin".to_string(),
-                display_mode: DisplayMode::Embedded,
-                metrics: GameMetrics { views: 1420, likes: 312, rating: 4.8 },
-                tags: vec!["puzzle".to_string(), "math".to_string(), "casual".to_string(), "html5".to_string()],
-                created_at: Utc::now().to_rfc3339(),
-            },
-            GameDocument {
-                id: "seed-hextris".to_string(),
-                title: "Hextris HTML5".to_string(),
-                description: "Fast-paced puzzle game inspired by Tetris played on a rotating hexagon grid.".to_string(),
-                original_url: "https://hextris.io/".to_string(),
-                embed_code: Some(r#"<iframe src="https://hextris.io/"></iframe>"#.to_string()),
-                thumbnail_url: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=800&q=80".to_string(),
-                creator_id: "system_admin".to_string(),
-                display_mode: DisplayMode::Embedded,
-                metrics: GameMetrics { views: 2890, likes: 540, rating: 4.9 },
-                tags: vec!["arcade".to_string(), "action".to_string(), "webgl".to_string(), "puzzle".to_string()],
-                created_at: Utc::now().to_rfc3339(),
-            },
-            GameDocument {
-                id: "seed-itch-demo".to_string(),
-                title: "Cyber Samurai Arcade".to_string(),
-                description: "Futuristic neon slice-and-dice runner. Demo link showcasing external frame detection.".to_string(),
-                original_url: "https://itch.io/".to_string(),
-                embed_code: Some(r#"<iframe src="https://itch.io/"></iframe>"#.to_string()),
-                thumbnail_url: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80".to_string(),
-                creator_id: "community_user_42".to_string(),
-                display_mode: DisplayMode::Popup,
-                metrics: GameMetrics { views: 850, likes: 198, rating: 4.5 },
-                tags: vec!["cyberpunk".to_string(), "itch-io".to_string(), "action".to_string()],
-                created_at: Utc::now().to_rfc3339(),
-            },
-        ];
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS games (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                original_url TEXT NOT NULL,
+                embed_code TEXT,
+                thumbnail_url TEXT NOT NULL,
+                creator_id TEXT NOT NULL,
+                display_mode TEXT NOT NULL,
+                tags TEXT[] NOT NULL,
+                views BIGINT NOT NULL DEFAULT 0,
+                likes BIGINT NOT NULL DEFAULT 0,
+                rating REAL NOT NULL DEFAULT 5.0,
+                manual_url TEXT,
+                website_url TEXT,
+                created_at TIMESTAMPTZ NOT NULL
+            )
+            "#
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to create games table");
 
-        let mut lock = self.store.write().unwrap();
-        for g in seeds {
-            lock.insert(g.id.clone(), g);
-        }
-        drop(lock);
-        let _ = self.save_to_disk();
+        Self { pool }
     }
 
-    fn save_to_disk(&self) -> Result<(), AppError> {
-        let lock = self.store.read().unwrap();
-        let games: Vec<GameDocument> = lock.values().cloned().collect();
-        let json_data = serde_json::to_string_pretty(&games)
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        fs::write(&self.file_path, json_data)
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        Ok(())
+    fn map_row(row: sqlx::postgres::PgRow) -> GameDocument {
+        let display_mode_str: String = row.get("display_mode");
+        let display_mode = if display_mode_str == "Popup" {
+            DisplayMode::Popup
+        } else {
+            DisplayMode::Embedded
+        };
+
+        let created_at_dt: DateTime<Utc> = row.get("created_at");
+
+        GameDocument {
+            id: row.get("id"),
+            title: row.get("title"),
+            description: row.get("description"),
+            original_url: row.get("original_url"),
+            embed_code: row.get("embed_code"),
+            thumbnail_url: row.get("thumbnail_url"),
+            creator_id: row.get("creator_id"),
+            display_mode,
+            metrics: GameMetrics {
+                views: row.get::<i64, _>("views") as u64,
+                likes: row.get::<i64, _>("likes") as u64,
+                rating: row.get("rating"),
+            },
+            tags: row.get("tags"),
+            created_at: created_at_dt.to_rfc3339(),
+            manual_url: row.get("manual_url"),
+            website_url: row.get("website_url"),
+        }
     }
 
-    pub fn list_games(&self, tag: Option<String>, search: Option<String>) -> Vec<GameDocument> {
-        let lock = self.store.read().unwrap();
-        let mut result: Vec<GameDocument> = lock.values().cloned().collect();
+    pub async fn list_games(&self, tag: Option<String>, search: Option<String>) -> Result<Vec<GameDocument>, AppError> {
+        let mut qb = sqlx::QueryBuilder::new("SELECT * FROM games WHERE 1=1");
 
         if let Some(t) = tag {
-            let tag_lower = t.to_lowercase();
-            result.retain(|g| g.tags.iter().any(|gt| gt.to_lowercase() == tag_lower));
+            qb.push(" AND '");
+            qb.push(t.to_lowercase());
+            qb.push("' = ANY(SELECT LOWER(unnest(tags)))"); 
         }
 
-        if let Some(q) = search {
-            let q_lower = q.to_lowercase();
-            result.retain(|g| {
-                g.title.to_lowercase().contains(&q_lower)
-                    || g.description.to_lowercase().contains(&q_lower)
-            });
+        if let Some(s) = search {
+            let search_term = format!("%{}%", s.to_lowercase());
+            qb.push(" AND (LOWER(title) LIKE ");
+            qb.push_bind(search_term.clone());
+            qb.push(" OR LOWER(description) LIKE ");
+            qb.push_bind(search_term);
+            qb.push(")");
         }
 
-        // Sort newest first
-        result.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-        result
+        qb.push(" ORDER BY created_at DESC");
+
+        let rows = qb.build().fetch_all(&self.pool).await.map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        
+        let games = rows.into_iter().map(Self::map_row).collect();
+        Ok(games)
     }
 
-    pub fn get_game(&self, id: &str) -> Result<GameDocument, AppError> {
-        let lock = self.store.read().unwrap();
-        lock.get(id)
-            .cloned()
-            .ok_or_else(|| AppError::NotFound(format!("Game with id '{}' not found", id)))
+    pub async fn get_game(&self, id: &str) -> Result<GameDocument, AppError> {
+        let row = sqlx::query("SELECT * FROM games WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        match row {
+            Some(r) => Ok(Self::map_row(r)),
+            None => Err(AppError::NotFound(format!("Game with id '{}' not found", id))),
+        }
     }
 
-    pub fn insert_game(
+    pub async fn insert_game(
         &self,
         title: String,
         description: String,
@@ -138,53 +138,79 @@ impl DbService {
         creator_id: String,
         display_mode: DisplayMode,
         tags: Vec<String>,
+        manual_url: Option<String>,
+        website_url: Option<String>,
     ) -> Result<GameDocument, AppError> {
-        let game = GameDocument {
-            id: Uuid::new_v4().to_string(),
-            title,
-            description,
-            original_url,
-            embed_code,
-            thumbnail_url,
-            creator_id,
-            display_mode,
-            metrics: GameMetrics::default(),
-            tags,
-            created_at: Utc::now().to_rfc3339(),
+        let id = Uuid::new_v4().to_string();
+        let display_mode_str = match display_mode {
+            DisplayMode::Embedded => "Embedded",
+            DisplayMode::Popup => "Popup",
         };
+        let created_at = Utc::now();
 
-        {
-            let mut lock = self.store.write().unwrap();
-            lock.insert(game.id.clone(), game.clone());
+        sqlx::query(
+            r#"
+            INSERT INTO games (
+                id, title, description, original_url, embed_code, thumbnail_url,
+                creator_id, display_mode, tags, views, likes, rating, manual_url, website_url, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            "#
+        )
+        .bind(&id)
+        .bind(title)
+        .bind(description)
+        .bind(original_url)
+        .bind(embed_code)
+        .bind(thumbnail_url)
+        .bind(creator_id)
+        .bind(display_mode_str)
+        .bind(&tags)
+        .bind(0_i64)
+        .bind(0_i64)
+        .bind(5.0_f32)
+        .bind(manual_url)
+        .bind(website_url)
+        .bind(created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        self.get_game(&id).await
+    }
+
+    pub async fn delete_game(&self, id: &str) -> Result<GameDocument, AppError> {
+        let game = self.get_game(id).await?;
+
+        sqlx::query("DELETE FROM games WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+        let game_dir = std::path::Path::new("public/games").join(id);
+        if game_dir.exists() {
+            let _ = std::fs::remove_dir_all(game_dir);
         }
 
-        let _ = self.save_to_disk();
         Ok(game)
     }
 
-    pub fn increment_views(&self, id: &str) -> Result<GameDocument, AppError> {
-        let mut lock = self.store.write().unwrap();
-        if let Some(game) = lock.get_mut(id) {
-            game.metrics.views += 1;
-            let updated = game.clone();
-            drop(lock);
-            let _ = self.save_to_disk();
-            Ok(updated)
-        } else {
-            Err(AppError::NotFound(format!("Game '{}' not found", id)))
-        }
+    pub async fn increment_views(&self, id: &str) -> Result<GameDocument, AppError> {
+        sqlx::query("UPDATE games SET views = views + 1 WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        self.get_game(id).await
     }
 
-    pub fn increment_likes(&self, id: &str) -> Result<GameDocument, AppError> {
-        let mut lock = self.store.write().unwrap();
-        if let Some(game) = lock.get_mut(id) {
-            game.metrics.likes += 1;
-            let updated = game.clone();
-            drop(lock);
-            let _ = self.save_to_disk();
-            Ok(updated)
-        } else {
-            Err(AppError::NotFound(format!("Game '{}' not found", id)))
-        }
+    pub async fn increment_likes(&self, id: &str) -> Result<GameDocument, AppError> {
+        sqlx::query("UPDATE games SET likes = likes + 1 WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+        self.get_game(id).await
     }
 }

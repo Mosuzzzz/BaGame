@@ -121,18 +121,18 @@ export default function GamesCatalogPage() {
         
         {/* Centralized Search Bar */}
         <div className="max-w-2xl mx-auto w-full">
-          <div className="flex items-center bg-[#222222] border border-white/5 rounded-full pl-6 pr-2 py-2 transition-all duration-300">
-            <Search className="w-5 h-5 text-zinc-400 mr-3 flex-shrink-0" />
+          <div className="flex items-center bg-gray-50 dark:bg-[#222222] border border-gray-200 dark:border-white/5 rounded-full pl-6 pr-2 py-2 transition-all duration-300">
+            <Search className="w-5 h-5 text-gray-400 dark:text-zinc-400 mr-3 flex-shrink-0" />
             <input
               type="text"
               placeholder={t('searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent text-white placeholder-zinc-500 focus:outline-none flex-1 text-sm w-full"
+              className="bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none flex-1 text-sm w-full"
             />
             <button
               onClick={fetchGames}
-              className="px-8 py-2.5 rounded-full bg-[#1a1a1a] border border-white/10 hover:bg-[#2a2a2a] text-zinc-300 text-xs font-semibold transition-all duration-300"
+              className="px-8 py-2.5 rounded-full bg-gray-200 dark:bg-[#1a1a1a] border border-gray-300 dark:border-white/10 hover:bg-[#f97316] dark:hover:bg-[#2a2a2a] text-gray-700 hover:text-white dark:text-zinc-300 dark:hover:text-white text-xs font-semibold transition-all duration-300"
             >
               Search
             </button>
@@ -150,8 +150,8 @@ export default function GamesCatalogPage() {
                 onClick={() => setActiveTag(cat.id)}
                 className={`px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
                   activeTag === cat.id
-                    ? 'bg-[#d4ff33] text-black'
-                    : 'bg-[#222222] text-zinc-400 border border-transparent hover:bg-[#2a2a2a] hover:text-zinc-200'
+                    ? 'bg-[#f97316] dark:bg-[#d4ff33] text-white dark:text-black'
+                    : 'bg-gray-100 dark:bg-[#222222] text-gray-500 dark:text-zinc-400 border border-transparent hover:bg-gray-200 dark:hover:bg-[#2a2a2a] hover:text-gray-900 dark:hover:text-zinc-200'
                 }`}
               >
                 {cat.label === 'ทั้งหมด' ? 'ALL' : cat.label.toUpperCase()}
@@ -165,13 +165,13 @@ export default function GamesCatalogPage() {
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div
                   key={i}
-                  className="aspect-[16/11] rounded-xl bg-[#222222] animate-pulse"
+                  className="aspect-[16/11] rounded-xl bg-gray-200 dark:bg-[#222222] animate-pulse"
                 />
               ))}
             </div>
           ) : games.length === 0 ? (
-            <div className="p-12 rounded-xl bg-[#222222] text-center space-y-4">
-              <h3 className="font-semibold text-lg text-white">No games found</h3>
+            <div className="p-12 rounded-xl bg-gray-50 dark:bg-[#222222] text-center space-y-4 border border-gray-200 dark:border-transparent">
+              <h3 className="font-semibold text-lg text-gray-900 dark:text-white">No games found</h3>
               <p className="text-sm text-zinc-400 mt-2 max-w-2xl mx-auto">
                 {t('latestGamesDesc')}
               </p>

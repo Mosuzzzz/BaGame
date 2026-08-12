@@ -13,13 +13,13 @@ const LOCAL_STORAGE_GAMES_KEY = 'cs67_user_submitted_games';
 const LOCAL_STORAGE_FAVS_KEY = 'cs67_fav_games';
 
 export default function HomePage() {
-  const { user, token, signOut, isMenuOpen } = useAuth();
-  const { t } = useLanguage();
+  const { user, token, signOut, isMenuOpen, showOnlyFavs } = useAuth();
+  const { lang, t } = useLanguage();
   const [games, setGames] = useState<GameDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTag, setActiveTag] = useState('');
-  const [showOnlyFavs, setShowOnlyFavs] = useState(false);
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [favGameIds, setFavGameIds] = useState<string[]>([]);
   const [showAllGames, setShowAllGames] = useState(false);
 
@@ -136,28 +136,28 @@ export default function HomePage() {
 
         {/* Central Hero landing info */}
         <div className="text-center space-y-8 max-w-3xl mx-auto pt-8">
-          <h1 className="font-logo text-5xl md:text-7xl font-extrabold tracking-wider leading-none text-white drop-shadow-[0_0_20px_rgba(212,255,51,0.3)]">
-            BA<span className="text-[#d4ff33]">GAME</span>
+          <h1 className="font-logo text-5xl md:text-7xl font-extrabold tracking-wider leading-none text-black dark:text-white drop-shadow-[0_0_20px_rgba(212,255,51,0.1)] dark:drop-shadow-[0_0_20px_rgba(212,255,51,0.3)] transition-colors duration-300">
+            BA<span className="text-[#f97316] dark:text-[#d4ff33]">GAME</span>
           </h1>
 
-          <p className="text-sm md:text-base text-zinc-400 max-w-xl mx-auto leading-relaxed">
+          <p className="text-sm md:text-base text-gray-500 dark:text-zinc-400 max-w-xl mx-auto leading-relaxed transition-colors duration-300">
             {t('heroDesc')}
           </p>
 
           {/* Centralized Search Bar */}
           <div className="max-w-xl w-full mx-auto pt-4">
-            <div className="flex items-center bg-white/5 border border-white/10 rounded-full pl-5 pr-2 py-2 focus-within:border-[#d4ff33] focus-within:ring-1 focus-within:ring-[#d4ff33]/30 transition-all duration-300">
-              <Search className="w-4 h-4 text-zinc-500 mr-2 flex-shrink-0" />
+            <div className="flex items-center bg-gray-50/80 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full pl-5 pr-2 py-2 focus-within:border-[#f97316] dark:focus-within:border-[#d4ff33] focus-within:ring-1 focus-within:ring-[#f97316]/30 dark:focus-within:ring-[#d4ff33]/30 transition-all duration-300">
+              <Search className="w-4 h-4 text-gray-400 dark:text-zinc-500 mr-2 flex-shrink-0" />
               <input
                 type="text"
                 placeholder={t('searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent text-white placeholder-zinc-500 focus:outline-none flex-1 text-xs w-full"
+                className="bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none flex-1 text-xs w-full"
               />
               <button
                 onClick={fetchGames}
-                className="px-6 py-2 rounded-full bg-white/10 hover:bg-[#d4ff33] text-white hover:text-black text-xs font-bold transition-all duration-300"
+                className="px-6 py-2 rounded-full bg-gray-200 dark:bg-white/10 hover:bg-[#f97316] dark:hover:bg-[#d4ff33] text-gray-700 dark:text-white hover:text-white dark:hover:text-black text-xs font-bold transition-all duration-300"
               >
                 Search
               </button>
@@ -166,24 +166,24 @@ export default function HomePage() {
         </div>
 
         {/* ALL GAMES GALLERY CONTAINER SECTION */}
-        <div className="bg-[#121212]/40 border border-white/5 rounded-[28px] p-8 md:p-10 backdrop-blur-md shadow-2xl space-y-8">
+        <div className="bg-white/60 dark:bg-[#121212]/40 border border-gray-200 dark:border-white/5 rounded-[28px] p-8 md:p-10 backdrop-blur-md shadow-2xl space-y-8 transition-colors duration-300">
 
           {/* Section Heading & Category Filter Pills */}
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                
-                <h2 className="font-semibold text-sm text-white tracking-wider uppercase">
+                <h2 className="font-semibold text-sm text-gray-900 dark:text-white tracking-wider uppercase">
                   {showOnlyFavs ? t('favToggleOn') : activeTag ? `Category: ${activeTag}` : t('allCategories')}
                 </h2>
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-white/5 text-zinc-400 font-bold border border-white/5">
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-zinc-400 font-bold border border-gray-200 dark:border-white/5">
                   {games.length}
                 </span>
               </div>
 
               <button
                 onClick={fetchGames}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-[11px] font-semibold text-zinc-300 border border-white/5 transition-all duration-300"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-[11px] font-semibold text-gray-600 dark:text-zinc-300 border border-gray-200 dark:border-white/5 transition-all duration-300"
               >
                 <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
                 <span>Refresh</span>
@@ -196,8 +196,8 @@ export default function HomePage() {
                   key={cat.id}
                   onClick={() => setActiveTag(cat.id)}
                   className={`px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 border ${activeTag === cat.id
-                      ? 'bg-[#d4ff33] text-black border-[#d4ff33] shadow-[0_0_15px_rgba(212,255,51,0.25)]'
-                      : 'bg-[#181818]/60 text-zinc-400 border-white/5 hover:bg-[#1f1f1f]/80 hover:text-white'
+                      ? 'bg-[#f97316] dark:bg-[#d4ff33] text-white dark:text-black border-[#f97316] dark:border-[#d4ff33] shadow-[0_0_15px_rgba(249,115,22,0.25)] dark:shadow-[0_0_15px_rgba(212,255,51,0.25)]'
+                      : 'bg-white dark:bg-[#181818]/60 text-gray-500 dark:text-zinc-400 border-gray-200 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-[#1f1f1f]/80 hover:text-gray-900 dark:hover:text-white'
                     }`}
                 >
                   {cat.label === 'ทั้งหมด' ? 'ALL' : cat.label.toUpperCase()}
@@ -212,14 +212,14 @@ export default function HomePage() {
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div
                   key={i}
-                  className="aspect-[16/11] rounded-2xl bg-white/5 border border-white/5 animate-pulse"
+                  className="aspect-[16/11] rounded-2xl bg-gray-200 dark:bg-white/5 border border-gray-300 dark:border-white/5 animate-pulse"
                 />
               ))}
             </div>
           ) : games.length === 0 ? (
-            <div className="p-12 rounded-2xl bg-white/5 border border-white/5 text-center space-y-4 backdrop-blur-md">
-              <h3 className="font-semibold text-lg text-white">{t('noGamesFound')}</h3>
-              <p className="text-sm text-zinc-400 max-w-sm mx-auto leading-relaxed">
+            <div className="p-12 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 text-center space-y-4 backdrop-blur-md">
+              <h3 className="font-semibold text-lg text-gray-900 dark:text-white">{t('noGamesFound')}</h3>
+              <p className="text-sm text-gray-500 dark:text-zinc-400 max-w-sm mx-auto leading-relaxed">
                 {t('noGamesDesc')}
               </p>
             </div>
@@ -242,7 +242,7 @@ export default function HomePage() {
               <div className="text-center pt-4">
                 <Link
                   href="/games"
-                  className="inline-block px-8 py-3 rounded-full border border-[#d4ff33] text-[#d4ff33] hover:bg-[#d4ff33] hover:text-black font-bold text-xs uppercase tracking-wider transition-all duration-300 shadow-[0_0_15px_rgba(212,255,51,0.05)] hover:shadow-[0_0_20px_rgba(212,255,51,0.2)] active:scale-95"
+                  className="inline-block px-8 py-3 rounded-full border border-[#f97316] dark:border-[#d4ff33] text-[#f97316] dark:text-[#d4ff33] hover:bg-[#f97316] dark:hover:bg-[#d4ff33] hover:text-white dark:hover:text-black font-bold text-xs uppercase tracking-wider transition-all duration-300 shadow-[0_0_15px_rgba(249,115,22,0.05)] dark:shadow-[0_0_15px_rgba(212,255,51,0.05)] hover:shadow-[0_0_20px_rgba(249,115,22,0.2)] dark:hover:shadow-[0_0_20px_rgba(212,255,51,0.2)] active:scale-95"
                 >
                   {t('exploreGames')} &rarr;
                 </Link>
@@ -255,54 +255,20 @@ export default function HomePage() {
       </main>
 
       {/* FOOTER */}
-      <footer className="border-t border-white/5 bg-zinc-950/40 py-10 px-4 text-center text-xs text-zinc-500 relative z-10">
+      <footer className="border-t border-gray-200 dark:border-white/5 bg-gray-50/80 dark:bg-zinc-950/40 py-10 px-4 text-center text-xs text-gray-500 dark:text-zinc-500 relative z-10 transition-colors duration-300">
         <div className="max-w-4xl mx-auto flex flex-col items-center justify-center gap-4">
           <p>© 2026 BaGame - {t('footerDesc')}. {t('footerRights')}.</p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <span>{t('footerDesc')}</span>
-            <span className="text-zinc-600">•</span>
+            <span className="text-gray-300 dark:text-zinc-600">•</span>
             <span>NextAuth rmuti.ac.th SSO</span>
-            <span className="text-zinc-600">•</span>
-            <span>Sandboxed Runtime</span>
+            <span className="text-gray-300 dark:text-zinc-600">•</span>
+            <span>Vercel + Next.js</span>
+            <span className="text-gray-300 dark:text-zinc-600">•</span>
+            <span>Firebase</span>
           </div>
         </div>
       </footer>
-
-      {/* FLOATING CARD OVERLAY (Visible only when logged in & menu is open) */}
-      {user && isMenuOpen && (
-        <div className="fixed bottom-12 right-12 z-50 w-72 rounded-[24px] bg-[#1a1a1a]/70 backdrop-blur-xl border border-white/10 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-fade-in">
-
-          {/* My account Row (Lime green highlight text) */}
-          <div className="w-full flex items-center gap-4 px-6 py-5 border-b border-white/5 text-[#d4ff33]">
-            <User className="w-5 h-5 flex-shrink-0" />
-            <span className="font-semibold text-[13px] uppercase tracking-wider">
-              My account
-            </span>
-          </div>
-
-          {/* Favourites Row */}
-          <button
-            onClick={() => setShowOnlyFavs(!showOnlyFavs)}
-            className={`w-full flex items-center gap-4 px-6 py-5 hover:bg-white/5 text-zinc-200 transition-all text-left border-b border-white/5 ${showOnlyFavs ? 'bg-white/5 text-[#d4ff33]' : ''
-              }`}
-          >
-            <Star className={`w-5 h-5 flex-shrink-0 ${showOnlyFavs ? 'fill-current text-[#d4ff33]' : ''}`} />
-            <span className="font-semibold text-[13px] uppercase tracking-wider">Favourites</span>
-          </button>
-
-          {/* Disconnect Row */}
-          <button
-            onClick={() => signOut()}
-            className="w-full flex items-center gap-4 px-6 py-5 bg-[#5f663f]/30 hover:bg-[#5f663f]/50 transition-colors text-left text-zinc-200"
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            <span className="font-semibold text-[13px] uppercase tracking-wider">
-              Disconnect
-            </span>
-          </button>
-
-        </div>
-      )}
     </div>
   );
 }

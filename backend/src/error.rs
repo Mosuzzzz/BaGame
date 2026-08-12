@@ -25,6 +25,8 @@ pub enum AppError {
 
     #[error("Internal server error: {0}")]
     Internal(String),
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 }
 
 impl IntoResponse for AppError {
@@ -32,6 +34,7 @@ impl IntoResponse for AppError {
         let (status, error_message) = match &self {
             AppError::InvalidUrl(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
             AppError::NetworkError(msg) | AppError::ScrapeError(msg) => {
                 (StatusCode::BAD_GATEWAY, msg.clone())
             }

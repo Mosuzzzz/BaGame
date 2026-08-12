@@ -8,10 +8,11 @@ dist/
 
 # Rust compilation output
 /backend/target/
-games_data.json
+
 
 # IDE & System files
 .DS_Store
 *.log
 .vscode/
 .idea/
+backend/.env

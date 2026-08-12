@@ -1,8 +1,14 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useTheme } from '@/components/ThemeContext';
 
 export function ThemeBackground() {
+  const pathname = usePathname();
+  const { theme } = useTheme();
+  const isGamePage = pathname?.startsWith('/game/');
+
   useEffect(() => {
     const canvas = document.getElementById('generative-bg') as HTMLCanvasElement;
     if (!canvas) return;
@@ -96,12 +102,13 @@ export function ThemeBackground() {
 
               const size = Math.max(0.6, 2.3 * scale);
               const alpha = Math.min(1.0, scale * 1.3) * 0.55;
+              const isLight = theme === 'light';
 
               if (isInteractive) {
-                // Turn bright lime-green close to cursor
-                ctx.fillStyle = `rgba(212, 255, 51, ${alpha * 1.6})`;
+                // Turn bright orange in light mode, or lime-green in dark mode close to cursor
+                ctx.fillStyle = isLight ? `rgba(249, 115, 22, ${alpha * 1.6})` : `rgba(212, 255, 51, ${alpha * 1.6})`;
               } else {
-                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.fillStyle = isLight ? `rgba(0, 0, 0, ${alpha * 0.5})` : `rgba(255, 255, 255, ${alpha})`;
               }
 
               ctx.fillRect(finalX - size / 2, finalY - size / 2, size, size);
@@ -121,7 +128,9 @@ export function ThemeBackground() {
       document.removeEventListener('mouseleave', handleMouseLeave);
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [isGamePage, theme]);
+
+  if (isGamePage) return null;
 
   return (
     <>
@@ -129,7 +138,7 @@ export function ThemeBackground() {
       <canvas id="generative-bg" className="fixed inset-0 w-full h-full pointer-events-none z-0 opacity-50" />
 
       {/* Large Glowing Lime-Green Spotlight Overlay (Matching Pinterest feel) */}
-      <div className="fixed top-[12%] left-1/2 -translate-x-1/2 w-[550px] h-[550px] bg-[#d4ff33]/15 rounded-full blur-[130px] pointer-events-none z-0" />
+      <div className="fixed top-[12%] left-1/2 -translate-x-1/2 w-[550px] h-[550px] bg-[#d4ff33]/10 dark:bg-[#d4ff33]/15 rounded-full blur-[130px] pointer-events-none z-0" />
     </>
   );
 }

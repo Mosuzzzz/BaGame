@@ -39,6 +39,10 @@ pub struct GameDocument {
     pub metrics: GameMetrics,
     pub tags: Vec<String>,
     pub created_at: String,
+    #[serde(default)]
+    pub manual_url: Option<String>,
+    #[serde(default)]
+    pub website_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

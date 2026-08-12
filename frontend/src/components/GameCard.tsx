@@ -34,10 +34,10 @@ export const GameCard: React.FC<GameCardProps> = ({ game, isAdmin, onDeleteGame,
   return (
     <Link
       href={`/game/${game.id}`}
-      className="group relative flex flex-col rounded-[20px] bg-[#181818]/60 border border-white/10 overflow-hidden hover:border-[#d4ff33]/40 hover:-translate-y-1 transition-all duration-300 backdrop-blur-md"
+      className="group relative flex flex-col rounded-[20px] bg-white/80 dark:bg-[#181818]/60 border border-gray-200 dark:border-white/10 overflow-hidden hover:border-[#f97316]/40 dark:hover:border-[#d4ff33]/40 hover:-translate-y-1 transition-all duration-300 backdrop-blur-md shadow-lg dark:shadow-none"
     >
       {/* Thumbnail Container */}
-      <div className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-950">
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-gray-100 dark:bg-zinc-950">
         <img
           src={game.thumbnail_url}
           alt={game.title}
@@ -72,43 +72,32 @@ export const GameCard: React.FC<GameCardProps> = ({ game, isAdmin, onDeleteGame,
           </button>
         )}
 
-        {/* Admin Delete Action overlay */}
-        {isAdmin && (
-          <button
-            onClick={handleDelete}
-            className={`absolute ${onToggleFavorite ? 'top-14 left-3.5' : 'top-3.5 left-3.5'} flex items-center gap-1 px-3 py-1 rounded-full bg-red-950/90 hover:bg-red-900 text-red-300 font-bold text-[9px] border border-red-500/25 transition-all uppercase tracking-wider z-20`}
-            title="Remove game"
-          >
-            <Trash2 className="w-3 h-3" />
-            <span>Delete</span>
-          </button>
-        )}
       </div>
 
       {/* Content Info */}
       <div className="flex flex-col flex-1 p-6">
         
         {/* Title */}
-        <h3 className="font-bold text-xl text-white group-hover:text-[#d4ff33] line-clamp-1 transition-colors mb-2">
+        <h3 className="font-bold text-xl text-gray-900 dark:text-white group-hover:text-[#f97316] dark:group-hover:text-[#d4ff33] line-clamp-1 transition-colors mb-2">
           {game.title}
         </h3>
         
         {/* Muted Description */}
-        <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed mb-6 flex-1">
+        <p className="text-xs text-gray-500 dark:text-zinc-400 line-clamp-2 leading-relaxed mb-6 flex-1">
           {game.description}
         </p>
 
         {/* Card Footer (Tag / Button row) */}
-        <div className="flex items-center justify-between pt-4 border-t border-white/5 gap-4">
+        <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-white/5 gap-4">
           
           {/* Categorization tag on the left */}
-          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">
+          <span className="text-[10px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-widest truncate">
             {tagsString}
           </span>
 
           {/* Deploy/Play button on the right */}
           <span
-            className="inline-flex items-center gap-1 px-5 py-2 rounded-full bg-[#d4ff33] text-black font-extrabold text-xs hover:bg-[#b5e620] transition-colors shadow-[0_0_15px_rgba(212,255,51,0.15)] group-hover:shadow-[0_0_20px_rgba(212,255,51,0.3)] shrink-0"
+            className="inline-flex items-center gap-1 px-5 py-2 rounded-full bg-[#f97316] dark:bg-[#d4ff33] text-white dark:text-black font-extrabold text-xs hover:bg-[#ea580c] dark:hover:bg-[#b5e620] transition-colors shadow-[0_0_15px_rgba(249,115,22,0.15)] dark:shadow-[0_0_15px_rgba(212,255,51,0.15)] group-hover:shadow-[0_0_20px_rgba(249,115,22,0.3)] dark:group-hover:shadow-[0_0_20px_rgba(212,255,51,0.3)] shrink-0"
           >
             <span>{t('play')}</span>
             <ArrowRight className="w-3.5 h-3.5 stroke-[3px]" />

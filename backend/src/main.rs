@@ -3,25 +3,28 @@ mod models;
 mod services;
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State, DefaultBodyLimit},
     http::Method,
-    routing::{get, post},
+    routing::{get, post, delete},
     Json, Router,
 };
 use error::AppError;
-use models::game::{ScrapedMetadataResponse, SubmitGameRequest};
+use models::game::{DisplayMode, ScrapedMetadataResponse, SubmitGameRequest};
 use serde::Deserialize;
 use services::db::DbService;
 use services::scraper::ScraperService;
+use services::upload::UploadService;
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use base64::Engine;
 
 pub struct AppState {
     pub db: DbService,
     pub scraper: ScraperService,
+    pub upload: UploadService,
 }
 
 #[tokio::main]
@@ -32,15 +35,19 @@ async fn main() {
         ))
         .with(tracing_subscriber::fmt::layer())
         .init();
+        
+    dotenvy::dotenv().ok();
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/bagame".to_string());
 
-    let db = DbService::new(PathBuf::from("games_data.json"));
+    let db = DbService::new(&database_url).await;
     let scraper = ScraperService::new();
+    let upload = UploadService::new();
 
-    let state = Arc::new(AppState { db, scraper });
+    let state = Arc::new(AppState { db, scraper, upload });
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
-        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])
         .allow_headers(Any);
 
     let app = Router::new()
@@ -49,9 +56,13 @@ async fn main() {
         .route("/api/games/:id", get(get_game))
         .route("/api/games/scrape", post(scrape_url_preview))
         .route("/api/games/submit", post(submit_game))
+        .route("/api/games/upload", post(upload_game))
+        .route("/api/games/:id", delete(delete_game))
         .route("/api/games/:id/view", post(increment_view))
         .route("/api/games/:id/like", post(increment_like))
+        .nest_service("/public", ServeDir::new("public"))
         .layer(cors)
+        .layer(DefaultBodyLimit::max(1024 * 1024 * 100)) // 100 MB body size limit
         .with_state(state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8000));
@@ -78,19 +89,19 @@ struct ListQuery {
 async fn list_games(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ListQuery>,
-) -> Json<serde_json::Value> {
-    let games = state.db.list_games(query.tag, query.search);
-    Json(serde_json::json!({
+) -> Result<Json<serde_json::Value>, AppError> {
+    let games = state.db.list_games(query.tag, query.search).await?;
+    Ok(Json(serde_json::json!({
         "count": games.len(),
         "games": games
-    }))
+    })))
 }
 
 async fn get_game(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let game = state.db.get_game(&id)?;
+    let game = state.db.get_game(&id).await?;
     Ok(Json(serde_json::json!({ "game": game })))
 }
 
@@ -130,7 +141,9 @@ async fn submit_game(
         creator_id,
         scraped.display_mode,
         tags,
-    )?;
+        None,
+        None, // website_url
+    ).await?;
 
     Ok(Json(serde_json::json!({
         "message": "Game submitted successfully",
@@ -142,7 +155,7 @@ async fn increment_view(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let game = state.db.increment_views(&id)?;
+    let game = state.db.increment_views(&id).await?;
     Ok(Json(serde_json::json!({ "game": game })))
 }
 
@@ -150,6 +163,86 @@ async fn increment_like(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let game = state.db.increment_likes(&id)?;
+    let game = state.db.increment_likes(&id).await?;
     Ok(Json(serde_json::json!({ "game": game })))
+}
+
+async fn upload_game(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    multipart: Multipart,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
+    if auth.is_none() || !auth.unwrap().starts_with("Bearer ") {
+        return Err(AppError::Unauthorized("Missing or invalid authorization token".to_string()));
+    }
+    
+    let token = auth.unwrap().trim_start_matches("Bearer ");
+    let username = get_username_from_token(token).ok_or_else(|| {
+        AppError::Unauthorized("Invalid token payload".to_string())
+    })?;
+
+    let mut upload_res = state.upload.process_multipart(multipart).await?;
+    // Override creator_id to match the authenticated user
+    upload_res.creator_id = username;
+
+    let game = state.db.insert_game(
+        upload_res.title.unwrap_or_else(|| "Uploaded Game".to_string()),
+        upload_res.description.unwrap_or_else(|| "No description provided.".to_string()),
+        upload_res.original_url,
+        upload_res.embed_code,
+        upload_res.thumbnail_url,
+        upload_res.creator_id,
+        DisplayMode::Embedded,
+        upload_res.tags,
+        upload_res.manual_url,
+        upload_res.website_url,
+    ).await?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Game uploaded successfully",
+        "game": game
+    })))
+}
+
+async fn delete_game(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
+    if auth.is_none() || !auth.unwrap().starts_with("Bearer ") {
+        return Err(AppError::Unauthorized("Missing or invalid authorization token".to_string()));
+    }
+    
+    let token = auth.unwrap().trim_start_matches("Bearer ");
+    let username = get_username_from_token(token).ok_or_else(|| {
+        AppError::Unauthorized("Invalid token payload".to_string())
+    })?;
+
+    let game = state.db.get_game(&id).await?;
+    if game.creator_id != username && username != "Admin" { // Simple admin check if needed
+        return Err(AppError::Unauthorized("You do not have permission to delete this game".to_string()));
+    }
+
+    let game = state.db.delete_game(&id).await?;
+    Ok(Json(serde_json::json!({
+        "message": "Game deleted successfully",
+        "game": game
+    })))
+}
+
+fn get_username_from_token(token: &str) -> Option<String> {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    
+    let payload = parts[1];
+    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(payload.as_bytes()).ok().or_else(|| {
+        base64::engine::general_purpose::URL_SAFE.decode(payload.as_bytes()).ok()
+    })?;
+    
+    let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+    json.get("name").and_then(|v| v.as_str()).map(|s| s.to_string())
 }

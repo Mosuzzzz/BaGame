@@ -19,12 +19,25 @@ export default function SubmitWizardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [deployStepIndex, setDeployStepIndex] = useState(0);
+
+  const deployMessages = [
+    "Uploading Assets...",
+    "Validating Engine Config...",
+    "Configuring Sandbox Player...",
+    "Publishing Game...",
+    "Complete!"
+  ];
+
   // Form State
   const [title, setTitle] = useState('');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [description, setDescription] = useState('');
+  const [coverImage, setCoverImage] = useState<File | null>(null);
   const [gameUrl, setGameUrl] = useState('');
-  const [coverArtUrl, setCoverArtUrl] = useState('');
+  const [manualPdf, setManualPdf] = useState<File | null>(null);
+  const [websiteUrl, setWebsiteUrl] = useState('');
 
   const genres = [
     { id: 'cs67', label: 'CS67' },
@@ -55,8 +68,8 @@ export default function SubmitWizardPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gameUrl.trim() || !coverArtUrl.trim()) {
-      setError('Please provide both the Cover Art URL and Game Embed URL.');
+    if (!gameUrl.trim() || !coverImage) {
+      setError('Please provide both the Cover Image and Game URL/Embed.');
       return;
     }
 
@@ -65,21 +78,45 @@ export default function SubmitWizardPage() {
       setError(null);
 
       const parsed = parseUrlOrEmbed(gameUrl);
-      
-      const payload = {
-        url: parsed.url,
-        embed_code: parsed.embedCode,
-        custom_title: title,
-        custom_description: description,
-        custom_thumbnail_url: coverArtUrl,
-        custom_tags: selectedGenres,
-        creator_id: user?.displayName || 'Anonymous Developer',
-      };
 
-      await submitGame(payload);
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('description', description);
+      formData.append('tags', selectedGenres.join(','));
+      formData.append('creator_id', user?.displayName || 'Anonymous Developer');
+      formData.append('cover_image', coverImage);
+      formData.append('url', parsed.url);
+      if (parsed.embedCode) {
+        formData.append('embed_code', parsed.embedCode);
+      }
+      if (manualPdf) {
+        formData.append('manual_pdf', manualPdf);
+      }
+      if (websiteUrl.trim()) {
+        formData.append('website_url', websiteUrl.trim());
+      }
+
+      const res = await fetch('http://localhost:8000/api/games/upload', {
+        method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to upload game');
+      }
+
+      setIsDeploying(true);
+      for (let i = 0; i < deployMessages.length; i++) {
+        setDeployStepIndex(i);
+        await new Promise(r => setTimeout(r, 1200));
+      }
 
       router.push('/');
-      
+
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An error occurred during submission.');
     } finally {
@@ -88,27 +125,64 @@ export default function SubmitWizardPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#181818] text-[#f3f4f6] min-h-screen">
+    <div className="flex-1 flex flex-col bg-gray-50 dark:bg-[#181818] text-gray-900 dark:text-[#f3f4f6] min-h-screen transition-colors duration-300 relative">
+      
+      {/* Deploying Overlay */}
+      {isDeploying && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 dark:bg-black/90 backdrop-blur-md transition-all">
+          <div className="flex flex-col items-center gap-6 text-center">
+            {/* Spinner */}
+            <div className="w-16 h-16 border-4 border-gray-200 dark:border-white/10 border-t-[#f97316] dark:border-t-[#d4ff33] rounded-full animate-spin shadow-[0_0_15px_rgba(249,115,22,0.3)] dark:shadow-[0_0_15px_rgba(212,255,51,0.3)]"></div>
+            <div className="space-y-2">
+              <h2 className="text-xl md:text-2xl font-bold uppercase tracking-wider text-gray-900 dark:text-white">
+                {deployStepIndex === deployMessages.length - 1 ? "Success!" : "Deploying..."}
+              </h2>
+              <p className="text-sm font-semibold text-[#f97316] dark:text-[#d4ff33] tracking-widest uppercase transition-all">
+                {deployMessages[deployStepIndex]}
+              </p>
+            </div>
+            
+            {/* Progress line */}
+            <div className="w-64 h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden mt-4">
+              <div 
+                className="h-full bg-[#f97316] dark:bg-[#d4ff33] transition-all duration-1000 ease-out"
+                style={{ width: `${((deployStepIndex + 1) / deployMessages.length) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 max-w-4xl w-full mx-auto px-6 lg:px-8 py-12 flex flex-col">
-        
+
         {/* Top Header / Progress */}
         <div className="flex items-center justify-between pb-6 relative">
           <div className="flex items-center gap-4 relative z-10">
-            <Link href="/" className="text-zinc-400 hover:text-white transition">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <h1 className="text-xl md:text-2xl font-bold uppercase tracking-wider text-white">
+            {step === 2 ? (
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white transition"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            ) : (
+              <Link href="/" className="text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white transition">
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+            )}
+            <h1 className="text-xl md:text-2xl font-bold uppercase tracking-wider text-gray-900 dark:text-white">
               Upload
             </h1>
           </div>
-          <div className="text-[#d4ff33] text-xs font-bold tracking-widest uppercase relative z-10">
+          <div className="text-[#f97316] dark:text-[#d4ff33] text-xs font-bold tracking-widest uppercase relative z-10 transition-colors">
             Step {step} of 2
           </div>
 
           {/* Progress Bar Line */}
-          <div className="absolute bottom-0 left-0 w-full h-[2px] bg-white/10">
-            <div 
-              className="h-full bg-[#d4ff33] transition-all duration-500 ease-in-out shadow-[0_0_10px_#d4ff33]"
+          <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gray-200 dark:bg-white/10">
+            <div
+              className="h-full bg-[#f97316] dark:bg-[#d4ff33] transition-all duration-500 ease-in-out shadow-[0_0_10px_rgba(249,115,22,0.5)] dark:shadow-[0_0_10px_#d4ff33]"
               style={{ width: step === 1 ? '50%' : '100%' }}
             />
           </div>
@@ -116,9 +190,9 @@ export default function SubmitWizardPage() {
 
         {/* Wizard Content */}
         <div className="flex-1 flex items-center justify-center py-12">
-          
-          <div className="w-full max-w-2xl bg-[#222222] rounded-2xl p-8 md:p-12 shadow-2xl border border-white/5 relative overflow-hidden">
-            
+
+          <div className="w-full max-w-2xl bg-white dark:bg-[#222222] rounded-2xl p-8 md:p-12 shadow-2xl border border-gray-200 dark:border-white/5 relative overflow-hidden transition-colors duration-300">
+
             {error && (
               <div className="mb-8 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
@@ -129,8 +203,8 @@ export default function SubmitWizardPage() {
             {step === 1 ? (
               <form onSubmit={handleNextStep} className="space-y-8 animate-fade-in">
                 <div className="space-y-2">
-                  <h2 className="text-3xl font-bold text-[#d4ff33] tracking-wide">Basic Info</h2>
-                  <p className="text-sm text-zinc-400">
+                  <h2 className="text-3xl font-bold text-[#f97316] dark:text-[#d4ff33] tracking-wide">Basic Info</h2>
+                  <p className="text-sm text-gray-500 dark:text-zinc-400">
                     Initialize your game's identity sequence. Provide the core parameters to register it within the network.
                   </p>
                 </div>
@@ -138,23 +212,23 @@ export default function SubmitWizardPage() {
                 <div className="space-y-6">
                   {/* Game Title */}
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1">
-                      Game Title <span className="text-red-400">*</span>
+                    <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-1">
+                      Game Title <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
                     <input
                       type="text"
                       placeholder="e.g. Cyber Protocol: Zero"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="w-full bg-[#1a1a1a] border border-white/5 rounded-xl px-5 py-3.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#d4ff33] transition-colors"
+                      className="w-full bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/5 rounded-xl px-5 py-3.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-600 focus:outline-none focus:border-[#f97316] dark:focus:border-[#d4ff33] transition-colors"
                       required
                     />
                   </div>
 
                   {/* Genres (Multi-select) */}
                   <div className="space-y-3">
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1">
-                      Genres / Tags <span className="text-zinc-600">(Select multiple)</span> <span className="text-red-400">*</span>
+                    <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-1">
+                      Genres / Tags <span className="text-gray-400 dark:text-zinc-600">(Select multiple)</span> <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {genres.map(g => {
@@ -170,11 +244,10 @@ export default function SubmitWizardPage() {
                                 setSelectedGenres(prev => [...prev, g.id]);
                               }
                             }}
-                            className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 border ${
-                              isSelected
-                                ? 'bg-[#d4ff33] text-black border-[#d4ff33] shadow-[0_0_10px_rgba(212,255,51,0.2)]'
-                                : 'bg-[#1a1a1a] text-zinc-400 border-white/5 hover:bg-[#2a2a2a] hover:text-white'
-                            }`}
+                            className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 border ${isSelected
+                                ? 'bg-[#f97316] dark:bg-[#d4ff33] text-white dark:text-black border-[#f97316] dark:border-[#d4ff33] shadow-[0_0_10px_rgba(249,115,22,0.2)] dark:shadow-[0_0_10px_rgba(212,255,51,0.2)]'
+                                : 'bg-gray-50 dark:bg-[#1a1a1a] text-gray-500 dark:text-zinc-400 border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-[#2a2a2a] hover:text-gray-900 dark:hover:text-white'
+                              }`}
                           >
                             {g.label}
                           </button>
@@ -186,10 +259,10 @@ export default function SubmitWizardPage() {
                   {/* Description */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-end">
-                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1">
-                        Short Description <span className="text-red-400">*</span>
+                      <label className="text-[10px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-1">
+                        Short Description <span className="text-red-500 dark:text-red-400">*</span>
                       </label>
-                      <span className="text-[10px] text-zinc-600 font-medium">MAX 250 CHARS</span>
+                      <span className="text-[10px] text-gray-400 dark:text-zinc-600 font-medium">MAX 250 CHARS</span>
                     </div>
                     <textarea
                       placeholder="Briefly describe the core gameplay loop and narrative hook..."
@@ -197,7 +270,7 @@ export default function SubmitWizardPage() {
                       onChange={(e) => setDescription(e.target.value)}
                       maxLength={250}
                       rows={4}
-                      className="w-full bg-[#1a1a1a] border border-white/5 rounded-xl px-5 py-4 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#d4ff33] transition-colors resize-none"
+                      className="w-full bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/5 rounded-xl px-5 py-4 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-600 focus:outline-none focus:border-[#f97316] dark:focus:border-[#d4ff33] transition-colors resize-none"
                       required
                     />
                   </div>
@@ -206,7 +279,7 @@ export default function SubmitWizardPage() {
                 <div className="pt-6 flex justify-end">
                   <button
                     type="submit"
-                    className="px-8 py-3.5 rounded-full bg-[#d4ff33] text-black hover:bg-[#c2ef1d] text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-[0_0_15px_rgba(212,255,51,0.2)] hover:shadow-[0_0_25px_rgba(212,255,51,0.4)] flex items-center gap-2"
+                    className="px-8 py-3.5 rounded-full bg-[#f97316] dark:bg-[#d4ff33] text-white dark:text-black hover:bg-[#ea580c] dark:hover:bg-[#c2ef1d] text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-[0_0_15px_rgba(249,115,22,0.2)] dark:shadow-[0_0_15px_rgba(212,255,51,0.2)] hover:shadow-[0_0_25px_rgba(249,115,22,0.4)] dark:hover:shadow-[0_0_25px_rgba(212,255,51,0.4)] flex items-center gap-2"
                   >
                     Proceed to Assets &rarr;
                   </button>
@@ -215,51 +288,50 @@ export default function SubmitWizardPage() {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-8 animate-fade-in">
                 <div className="space-y-2">
-                  <h2 className="text-3xl font-bold text-white tracking-wide">Upload Assets</h2>
-                  <p className="text-sm text-zinc-400">
+                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white tracking-wide">Upload Assets</h2>
+                  <p className="text-sm text-gray-500 dark:text-zinc-400">
                     Provide the URLs for your game's visual identity and playable build.
                   </p>
                 </div>
 
                 <div className="space-y-6">
-                  {/* Cover Art URL (Styled like a dropzone) */}
+                  {/* Cover Art Upload */}
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-[#d4ff33] uppercase tracking-widest flex items-center gap-2">
-                      <div className="w-4 h-4 bg-[#d4ff33]/20 rounded flex items-center justify-center">
-                        <ImageIcon className="w-2.5 h-2.5 text-[#d4ff33]" />
+                    <label className="text-[10px] font-bold text-[#f97316] dark:text-[#d4ff33] uppercase tracking-widest flex items-center gap-2">
+                      <div className="w-4 h-4 bg-[#f97316]/10 dark:bg-[#d4ff33]/20 rounded flex items-center justify-center">
+                        <ImageIcon className="w-2.5 h-2.5 text-[#f97316] dark:text-[#d4ff33]" />
                       </div>
-                      Cover Art URL <span className="text-red-400">*</span>
+                      Cover Art (ปกเกม) <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
-                    <div className="w-full border-2 border-dashed border-white/10 hover:border-[#d4ff33]/50 rounded-2xl p-8 transition-colors flex flex-col items-center justify-center text-center gap-4 bg-[#1a1a1a]/50 focus-within:border-[#d4ff33]">
-                      <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
-                        <UploadCloud className="w-6 h-6 text-[#d4ff33]" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white mb-1">Paste your cover art URL here</p>
-                        <p className="text-xs text-zinc-500">Supports HTTPS links (JPG, PNG, WEBP)</p>
-                      </div>
+                    <label className="flex flex-col items-center justify-center w-full h-32 px-4 transition bg-gray-50 dark:bg-[#1a1a1a]/50 border-2 border-gray-200 dark:border-white/10 border-dashed rounded-xl appearance-none cursor-pointer hover:border-[#f97316]/50 dark:hover:border-[#d4ff33]/50 focus-within:border-[#f97316] dark:focus-within:border-[#d4ff33]">
+                      <span className="flex flex-col items-center space-y-2">
+                        <UploadCloud className="w-6 h-6 text-[#f97316] dark:text-[#d4ff33]" />
+                        <span className="font-medium text-sm text-gray-700 dark:text-zinc-300">
+                          {coverImage ? coverImage.name : 'Click to upload cover image'}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-zinc-500">PNG, JPG up to 5MB</span>
+                      </span>
                       <input
-                        type="url"
-                        placeholder="https://example.com/image.jpg"
-                        value={coverArtUrl}
-                        onChange={(e) => setCoverArtUrl(e.target.value)}
-                        className="w-full max-w-sm bg-[#222222] border border-white/10 rounded-full px-5 py-2.5 text-xs text-center text-white placeholder-zinc-600 focus:outline-none focus:border-[#d4ff33] transition-colors mt-2"
+                        type="file"
+                        accept="image/png, image/jpeg, image/webp"
+                        onChange={(e) => setCoverImage(e.target.files?.[0] || null)}
+                        className="hidden"
                         required
                       />
-                    </div>
+                    </label>
                   </div>
 
                   {/* Game Build URL */}
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-[#d4ff33] uppercase tracking-widest flex items-center gap-2">
-                      <div className="w-4 h-4 bg-[#d4ff33]/20 rounded flex items-center justify-center">
-                        <Code className="w-2.5 h-2.5 text-[#d4ff33]" />
+                    <label className="text-[10px] font-bold text-[#f97316] dark:text-[#d4ff33] uppercase tracking-widest flex items-center gap-2">
+                      <div className="w-4 h-4 bg-[#f97316]/10 dark:bg-[#d4ff33]/20 rounded flex items-center justify-center">
+                        <Code className="w-2.5 h-2.5 text-[#f97316] dark:text-[#d4ff33]" />
                       </div>
-                      Game Build URL / Embed <span className="text-red-400">*</span>
+                      Game Build URL / Embed <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
-                    <div className="flex items-center gap-3 w-full bg-[#1a1a1a] border border-white/10 focus-within:border-[#d4ff33] rounded-xl p-3 pl-4 transition-colors">
-                      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
-                        <LinkIcon className="w-4 h-4 text-zinc-400" />
+                    <div className="flex items-center gap-3 w-full bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 focus-within:border-[#f97316] dark:focus-within:border-[#d4ff33] rounded-xl p-3 pl-4 transition-colors">
+                      <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-white/5 flex items-center justify-center flex-shrink-0">
+                        <LinkIcon className="w-4 h-4 text-gray-400 dark:text-zinc-400" />
                       </div>
                       <div className="flex-1">
                         <input
@@ -267,26 +339,65 @@ export default function SubmitWizardPage() {
                           placeholder="Paste game URL or <iframe> embed code"
                           value={gameUrl}
                           onChange={(e) => setGameUrl(e.target.value)}
-                          className="w-full bg-transparent text-sm text-white placeholder-zinc-600 focus:outline-none"
+                          className="w-full bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-600 focus:outline-none"
                           required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Game Manual (PDF) */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-[#f97316] dark:text-[#d4ff33] uppercase tracking-widest flex items-center gap-2">
+                      <div className="w-4 h-4 bg-[#f97316]/10 dark:bg-[#d4ff33]/20 rounded flex items-center justify-center">
+                        <LinkIcon className="w-2.5 h-2.5 text-[#f97316] dark:text-[#d4ff33]" />
+                      </div>
+                      Game Manual (คู่มือ) <span className="text-gray-400 dark:text-zinc-500">(Optional)</span>
+                    </label>
+                    <label className="flex flex-col items-center justify-center w-full h-24 px-4 transition bg-gray-50 dark:bg-[#1a1a1a]/50 border-2 border-gray-200 dark:border-white/10 border-dashed rounded-xl appearance-none cursor-pointer hover:border-[#f97316]/50 dark:hover:border-[#d4ff33]/50 focus-within:border-[#f97316] dark:focus-within:border-[#d4ff33]">
+                      <span className="flex flex-col items-center space-y-1">
+                        <span className="font-medium text-sm text-gray-700 dark:text-zinc-300">
+                          {manualPdf ? manualPdf.name : 'Click to upload PDF manual'}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-zinc-500">PDF up to 10MB</span>
+                      </span>
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => setManualPdf(e.target.files?.[0] || null)}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Website URL */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-[#f97316] dark:text-[#d4ff33] uppercase tracking-widest flex items-center gap-2">
+                      <div className="w-4 h-4 bg-[#f97316]/10 dark:bg-[#d4ff33]/20 rounded flex items-center justify-center">
+                        <LinkIcon className="w-2.5 h-2.5 text-[#f97316] dark:text-[#d4ff33]" />
+                      </div>
+                      Website Link <span className="text-gray-400 dark:text-zinc-500">(Optional)</span>
+                    </label>
+                    <div className="flex items-center gap-3 w-full bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 focus-within:border-[#f97316] dark:focus-within:border-[#d4ff33] rounded-xl p-3 pl-4 transition-colors">
+                      <div className="flex-1">
+                        <input
+                          type="url"
+                          placeholder="https://your-developer-site.com"
+                          value={websiteUrl}
+                          onChange={(e) => setWebsiteUrl(e.target.value)}
+                          className="w-full bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-600 focus:outline-none"
                         />
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-6 flex items-center justify-between border-t border-white/5">
-                  <button
-                    type="button"
-                    onClick={() => setStep(1)}
-                    className="px-6 py-2.5 rounded-full text-zinc-400 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2"
-                  >
-                    &larr; Back
-                  </button>
+                <div className="pt-6 flex items-center justify-between border-t border-gray-200 dark:border-white/5">
+
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-8 py-3.5 rounded-full bg-[#d4ff33] text-black hover:bg-[#c2ef1d] disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-[0_0_15px_rgba(212,255,51,0.2)] hover:shadow-[0_0_25px_rgba(212,255,51,0.4)] flex items-center gap-2"
+                    className="px-8 py-3.5 rounded-full bg-[#f97316] dark:bg-[#d4ff33] text-white dark:text-black hover:bg-[#ea580c] dark:hover:bg-[#c2ef1d] disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-[0_0_15px_rgba(249,115,22,0.2)] dark:shadow-[0_0_15px_rgba(212,255,51,0.2)] hover:shadow-[0_0_25px_rgba(249,115,22,0.4)] dark:hover:shadow-[0_0_25px_rgba(212,255,51,0.4)] flex items-center gap-2"
                   >
                     {isSubmitting ? 'Publishing...' : 'Publish Game \u2192'}
                   </button>
@@ -303,5 +414,5 @@ export default function SubmitWizardPage() {
 }
 
 // Temporary icon imports to avoid missing components
-const ImageIcon = ({ className }: { className?: string }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>;
-const Code = ({ className }: { className?: string }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>;
+const ImageIcon = ({ className }: { className?: string }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>;
+const Code = ({ className }: { className?: string }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>;

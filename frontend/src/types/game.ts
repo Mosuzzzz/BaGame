@@ -18,6 +18,8 @@ export interface GameDocument {
   metrics: GameMetrics;
   tags: string[];
   created_at: string;
+  manual_url?: string;
+  website_url?: string;
 }
 
 export interface ScrapedMetadata {
