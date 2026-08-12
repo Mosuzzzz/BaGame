@@ -28,13 +28,7 @@ export default function SubmitWizardPage() {
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployStepIndex, setDeployStepIndex] = useState(0);
 
-  if (loading || !user) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-[#181818] min-h-screen">
-        <div className="w-12 h-12 border-4 border-gray-200 dark:border-white/10 border-t-[#f97316] dark:border-t-[#d4ff33] rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+
 
   const deployMessages = [
     "Uploading Assets...",
@@ -137,6 +131,14 @@ export default function SubmitWizardPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (loading || !user) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-[#181818] min-h-screen">
+        <div className="w-12 h-12 border-4 border-gray-200 dark:border-white/10 border-t-[#f97316] dark:border-t-[#d4ff33] rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 dark:bg-[#181818] text-gray-900 dark:text-[#f3f4f6] min-h-screen transition-colors duration-300 relative">
