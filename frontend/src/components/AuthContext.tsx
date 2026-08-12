@@ -83,8 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         prompt: 'select_account' 
       });
       
-      // Set persistence to in-memory to prevent IndexedDB closing/hidden errors in sandboxes
-      await setPersistence(auth, inMemoryPersistence);
+      // 
       
       const result = await signInWithPopup(auth, googleProvider);
       
