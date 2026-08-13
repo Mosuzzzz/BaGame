@@ -13,7 +13,7 @@ const LOCAL_STORAGE_GAMES_KEY = 'cs67_user_submitted_games';
 const LOCAL_STORAGE_FAVS_KEY = 'cs67_fav_games';
 
 export default function HomePage() {
-  const { user, token, signOut, isMenuOpen, showOnlyFavs } = useAuth();
+  const { user, token, isAdmin, signOut, isMenuOpen, showOnlyFavs } = useAuth();
   const { lang, t } = useLanguage();
   const [games, setGames] = useState<GameDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -230,7 +230,7 @@ export default function HomePage() {
                   <GameCard
                     key={game.id}
                     game={game}
-                    isAdmin={!!user}
+                    isAdmin={isAdmin}
                     onDeleteGame={handleDeleteGame}
                     isFavorite={favGameIds.includes(game.id)}
                     onToggleFavorite={toggleFavorite}

@@ -5,7 +5,7 @@ import { useAuth } from '@/components/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ChevronDown, UploadCloud, Link as LinkIcon, AlertTriangle } from 'lucide-react';
-import { parseUrlOrEmbed } from '@/components/SubmitGameModal';
+import { parseUrlOrEmbed } from '@/lib/utils';
 import { scrapeUrlPreview, submitGame } from '@/lib/api';
 import { GameDocument } from '@/types/game';
 
