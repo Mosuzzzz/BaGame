@@ -19,7 +19,60 @@ use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use base64::Engine;
+
+use jsonwebtoken::{decode, decode_header, DecodingKey, Validation, Algorithm};
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use tokio::sync::RwLock;
+
+#[derive(Debug, Deserialize)]
+pub struct FirebaseToken {
+    pub uid: String,
+    pub email: Option<String>,
+    pub name: Option<String>,
+}
+
+static JWKS: Lazy<Arc<RwLock<HashMap<String, String>>>> = Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
+
+async fn fetch_jwks() -> Option<HashMap<String, String>> {
+    let url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com";
+    let res = reqwest::get(url).await.ok()?;
+    res.json().await.ok()
+}
+
+async fn verify_firebase_token(token: &str) -> Result<FirebaseToken, String> {
+    let header = decode_header(token).map_err(|e| e.to_string())?;
+    let kid = header.kid.ok_or_else(|| "No kid in token".to_string())?;
+    
+    let mut cert = {
+        let cache = JWKS.read().await;
+        cache.get(&kid).cloned()
+    };
+    
+    if cert.is_none() {
+        if let Some(keys) = fetch_jwks().await {
+            let mut cache = JWKS.write().await;
+            *cache = keys;
+            cert = cache.get(&kid).cloned();
+        }
+    }
+    
+    let cert = cert.ok_or_else(|| "Unknown kid".to_string())?;
+    let decoding_key = DecodingKey::from_rsa_pem(cert.as_bytes()).map_err(|e| e.to_string())?;
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.validate_exp = true;
+    validation.set_audience(&["bagame-8477b"]);
+    validation.set_issuer(&["https://securetoken.google.com/bagame-8477b"]);
+    
+    let decoded_token = decode::<serde_json::Value>(token, &decoding_key, &validation).map_err(|e| e.to_string())?;
+    
+    let claims = decoded_token.claims;
+    Ok(FirebaseToken {
+        uid: claims.get("user_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        email: claims.get("email").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        name: claims.get("name").and_then(|v| v.as_str()).map(|s| s.to_string()),
+    })
+}
 
 pub struct AppState {
     pub db: DbService,
@@ -43,7 +96,7 @@ async fn main() {
     let state = Arc::new(AppState { db, scraper });
 
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(Any) // Should be locked down to specific frontend origin in production
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::OPTIONS])
         .allow_headers(Any);
 
@@ -59,7 +112,7 @@ async fn main() {
         .route("/api/games/:id/like", post(increment_like))
         .nest_service("/public", ServeDir::new("public"))
         .layer(cors)
-        .layer(DefaultBodyLimit::max(1024 * 1024 * 100)) // 100 MB body size limit
+        .layer(DefaultBodyLimit::max(1024 * 1024 * 5)) // 5 MB body size limit
         .with_state(state);
 
     let port = std::env::var("PORT")
@@ -125,8 +178,27 @@ async fn scrape_url_preview(
 
 async fn submit_game(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<SubmitGameRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
+    if auth.is_none() || !auth.unwrap().starts_with("Bearer ") {
+        return Err(AppError::Unauthorized("Missing or invalid authorization token".to_string()));
+    }
+    
+    let token = auth.unwrap().trim_start_matches("Bearer ");
+    let token_payload = verify_firebase_token(token).await.map_err(|e| {
+        AppError::Unauthorized(format!("Invalid token payload: {}", e))
+    })?;
+
+    if let Some(email) = &token_payload.email {
+        if !email.ends_with("@rmuti.ac.th") {
+            return Err(AppError::Unauthorized("Email must be @rmuti.ac.th".to_string()));
+        }
+    } else {
+        return Err(AppError::Unauthorized("No email in token".to_string()));
+    }
+
     let url = payload.url.trim();
     if url.is_empty() {
         return Err(AppError::InvalidUrl("URL cannot be empty".to_string()));
@@ -152,7 +224,7 @@ async fn submit_game(
     let title = payload.custom_title.unwrap_or(scraped.title);
     let description = payload.custom_description.unwrap_or(scraped.description);
     let tags = payload.custom_tags.unwrap_or(scraped.tags);
-    let creator_id = payload.creator_id.unwrap_or_else(|| "community_guest".to_string());
+    let creator_id = token_payload.uid;
 
     let thumbnail_url = payload.custom_thumbnail_url.unwrap_or(scraped.thumbnail_url);
 
@@ -203,12 +275,25 @@ async fn edit_game(
     }
     
     let token = auth.unwrap().trim_start_matches("Bearer ");
-    let username = get_username_from_token(token).ok_or_else(|| {
-        AppError::Unauthorized("Invalid token payload".to_string())
+    let token_payload = verify_firebase_token(token).await.map_err(|e| {
+        AppError::Unauthorized(format!("Invalid token payload: {}", e))
     })?;
 
+    if let Some(email) = &token_payload.email {
+        if !email.ends_with("@rmuti.ac.th") {
+            return Err(AppError::Unauthorized("Email must be @rmuti.ac.th".to_string()));
+        }
+    } else {
+        return Err(AppError::Unauthorized("No email in token".to_string()));
+    }
+
+    let is_admin = match &token_payload.email {
+        Some(e) => e == "patiphan@rmuti.ac.th" || e == "admin@rmuti.ac.th",
+        None => false,
+    };
+
     let game = state.db.get_game(&id).await?;
-    if game.creator_id != username && username != "Admin" {
+    if game.creator_id != token_payload.uid && !is_admin {
         return Err(AppError::Unauthorized("You do not have permission to edit this game".to_string()));
     }
 
@@ -241,12 +326,17 @@ async fn delete_game(
     }
     
     let token = auth.unwrap().trim_start_matches("Bearer ");
-    let username = get_username_from_token(token).ok_or_else(|| {
-        AppError::Unauthorized("Invalid token payload".to_string())
+    let token_payload = verify_firebase_token(token).await.map_err(|e| {
+        AppError::Unauthorized(format!("Invalid token payload: {}", e))
     })?;
 
+    let is_admin = match &token_payload.email {
+        Some(e) => e == "patiphan@rmuti.ac.th" || e == "admin@rmuti.ac.th",
+        None => false,
+    };
+
     let game = state.db.get_game(&id).await?;
-    if game.creator_id != username && username != "Admin" { // Simple admin check if needed
+    if game.creator_id != token_payload.uid && !is_admin {
         return Err(AppError::Unauthorized("You do not have permission to delete this game".to_string()));
     }
 
@@ -255,19 +345,4 @@ async fn delete_game(
         "message": "Game deleted successfully",
         "game": game
     })))
-}
-
-fn get_username_from_token(token: &str) -> Option<String> {
-    let parts: Vec<&str> = token.split('.').collect();
-    if parts.len() != 3 {
-        return None;
-    }
-    
-    let payload = parts[1];
-    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(payload.as_bytes()).ok().or_else(|| {
-        base64::engine::general_purpose::URL_SAFE.decode(payload.as_bytes()).ok()
-    })?;
-    
-    let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
-    json.get("name").and_then(|v| v.as_str()).map(|s| s.to_string())
 }

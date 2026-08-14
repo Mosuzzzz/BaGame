@@ -21,3 +21,5 @@ zip = "8.6.0"
 base64 = "0.23.1"
 sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono", "json"] }
 dotenvy = "0.15.7"
+jsonwebtoken = "11.0.0"
+once_cell = "1.21.4"

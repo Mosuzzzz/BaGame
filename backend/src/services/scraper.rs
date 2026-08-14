@@ -5,10 +5,10 @@ use reqwest::Client;
 use scraper::{Html, Selector};
 use std::time::Duration;
 use url::Url;
+use std::net::{IpAddr, SocketAddr};
+use tokio::net::lookup_host;
 
-pub struct ScraperService {
-    client: Client,
-}
+pub struct ScraperService {}
 
 #[derive(Debug)]
 pub struct ScrapedInfo {
@@ -27,16 +27,10 @@ const BLOCKED_KEYWORDS: &[&str] = &[
 
 impl ScraperService {
     pub fn new() -> Self {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(10))
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 WebGameAggregator/1.0")
-            .build()
-            .unwrap_or_default();
-
-        Self { client }
+        Self {}
     }
 
-    pub fn validate_url(&self, raw_url: &str) -> Result<Url, AppError> {
+    pub async fn validate_url(&self, raw_url: &str) -> Result<(Url, SocketAddr), AppError> {
         let parsed = Url::parse(raw_url)
             .map_err(|e| AppError::InvalidUrl(format!("รูปแบบ URL ไม่ถูกต้อง: {}", e)))?;
 
@@ -56,7 +50,36 @@ impl ScraperService {
             }
         }
 
-        Ok(parsed)
+        let host = parsed.host_str().ok_or_else(|| AppError::InvalidUrl("Missing host".to_string()))?;
+        let port = parsed.port_or_known_default().unwrap_or(if parsed.scheme() == "https" { 443 } else { 80 });
+
+        let addr_str = format!("{}:{}", host, port);
+        let mut addrs = lookup_host(&addr_str).await.map_err(|_| AppError::InvalidUrl("DNS resolution failed".to_string()))?;
+
+        let mut valid_addr: Option<SocketAddr> = None;
+        while let Some(addr) = addrs.next() {
+            let ip = addr.ip();
+            if ip.is_loopback() || ip.is_unspecified() || ip.is_multicast() {
+                continue;
+            }
+            match ip {
+                IpAddr::V4(ipv4) => {
+                    if ipv4.is_private() || ipv4.is_link_local() || ipv4.is_broadcast() || ipv4.is_documentation() {
+                        continue;
+                    }
+                }
+                IpAddr::V6(ipv6) => {
+                    // Reject all IPv6 for simplicity in SSRF protection, or add complex checks
+                    continue; 
+                }
+            }
+            valid_addr = Some(addr);
+            break;
+        }
+
+        let safe_addr = valid_addr.ok_or_else(|| AppError::InvalidUrl("Host resolves to restricted or invalid IP".to_string()))?;
+
+        Ok((parsed, safe_addr))
     }
 
     pub fn check_embeddability(&self, headers: &HeaderMap) -> DisplayMode {
@@ -84,10 +107,17 @@ impl ScraperService {
     }
 
     pub async fn scrape(&self, target_url: &str) -> Result<ScrapedInfo, AppError> {
-        let parsed_url = self.validate_url(target_url)?;
+        let (parsed_url, safe_addr) = self.validate_url(target_url).await?;
+        let host = parsed_url.host_str().unwrap_or_default();
 
-        let response = self
-            .client
+        let client = Client::builder()
+            .timeout(Duration::from_secs(8))
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) WebGameAggregator/1.0")
+            .resolve(host, safe_addr)
+            .build()
+            .map_err(|e| AppError::NetworkError(format!("Failed to build client: {}", e)))?;
+
+        let mut response = client
             .get(parsed_url.as_str())
             .send()
             .await
@@ -96,10 +126,22 @@ impl ScraperService {
         let display_mode = self.check_embeddability(response.headers());
 
         let final_url = response.url().clone();
-        let body_text = response
-            .text()
+        
+        let content_length = response.content_length().unwrap_or(0);
+        if content_length > 10 * 1024 * 1024 {
+            return Err(AppError::ScrapeError("Response is too large".to_string()));
+        }
+
+        let body_bytes = response
+            .bytes()
             .await
             .map_err(|e| AppError::ScrapeError(format!("ไม่สามารถอ่านเนื้อหาเว็บได้: {}", e)))?;
+            
+        if body_bytes.len() > 10 * 1024 * 1024 {
+            return Err(AppError::ScrapeError("Response is too large".to_string()));
+        }
+        
+        let body_text = String::from_utf8_lossy(&body_bytes).to_string();
 
         // Content safety check on HTML body
         let lower_body = body_text.to_lowercase();
