@@ -77,27 +77,20 @@ export async function deleteCloudGame(id: string): Promise<GameDocument[]> {
 
 export async function incrementCloudGameMetrics(id: string, viewInc: number, likeInc: number): Promise<GameDocument | null> {
   try {
-    // Note: Since we are storing as JSON strings using redis.set, atomic updates to specific fields 
-    // without JSON.SET (RedisJSON) is tricky in Upstash KV natively without lua scripts.
-    // However, Upstash KV supports JSON commands if enabled, but standard set/get doesn't.
-    // For simplicity without assuming RedisJSON module, we'll fetch, update, and write back,
-    // OR we could split metrics into a Hash if we really need atomic.
-    // Since the prompt explicitly requested "Use atomic increments for views/likes", 
-    // let's store metrics in a separate hash: `game_metrics:{id}` -> { views: 0, likes: 0 }
-    
+    // Check if the game exists first to prevent creating useless metrics hashes for fake IDs
+    let game = await redis.get<GameDocument>(`game:${id}`);
+    if (!game) {
+      return null;
+    }
+
     // Increment metrics atomically
     const p = redis.pipeline();
     if (viewInc > 0) p.hincrby(`game_metrics:${id}`, 'views', viewInc);
     if (likeInc > 0) p.hincrby(`game_metrics:${id}`, 'likes', likeInc);
     await p.exec();
     
-    // Fetch the updated game and metrics
-    const [game, metrics] = await Promise.all([
-      redis.get<GameDocument>(`game:${id}`),
-      redis.hgetall<Record<string, string>>(`game_metrics:${id}`)
-    ]);
-    
-    if (!game) return null;
+    // Fetch the updated metrics
+    const metrics = await redis.hgetall<Record<string, string>>(`game_metrics:${id}`);
     
     game.metrics.views = parseInt(metrics?.views || '0', 10);
     game.metrics.likes = parseInt(metrics?.likes || '0', 10);

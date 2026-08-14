@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateGameMetrics } from '../../store';
-import { checkRateLimit, hasUserActionOccurred } from '@/lib/rate-limit';
+import { checkRateLimit, hasUserActionOccurred, getClientIp } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
   
-  const ip = request.ip || request.headers.get('x-forwarded-for') || '127.0.0.1';
+  const ip = getClientIp(request);
   const hasAction = await hasUserActionOccurred(ip, params.id, 'like');
   if (hasAction) {
     return NextResponse.json({ error: 'Already liked' }, { status: 400 });

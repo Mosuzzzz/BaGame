@@ -1,9 +1,13 @@
 import { redis } from './db';
 import { NextRequest } from 'next/server';
 
+export function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  return request.ip || forwarded?.split(',')[0].trim() || 'unknown';
+}
+
 export async function checkRateLimit(request: NextRequest, action: string, limit: number, windowSeconds: number): Promise<boolean> {
-  // Use IP or token (if available) for rate limiting
-  const ip = request.ip || request.headers.get('x-forwarded-for') || '127.0.0.1';
+  const ip = getClientIp(request);
   const key = `ratelimit:${action}:${ip}`;
 
   try {
@@ -21,8 +25,12 @@ export async function checkRateLimit(request: NextRequest, action: string, limit
 export async function hasUserActionOccurred(userId: string, gameId: string, action: 'like' | 'view'): Promise<boolean> {
   const key = `action:${action}:${gameId}:${userId}`;
   try {
-    const exists = await redis.setnx(key, '1');
-    if (exists === 1) {
+    const result = await redis.set(key, '1', {
+      nx: true,
+      ex: 1800, // 30 minutes TTL
+    });
+    
+    if (result === 'OK') {
       // It did not exist, we just set it.
       return false;
     }
