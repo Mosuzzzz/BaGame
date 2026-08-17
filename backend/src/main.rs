@@ -3,76 +3,21 @@ mod models;
 mod services;
 
 use axum::{
-    extract::{Multipart, Path, Query, State, DefaultBodyLimit},
+    extract::{Path, Query, State},
     http::Method,
-    routing::{get, post, delete, put},
+    routing::{get, post, put},
     Json, Router,
 };
 use error::AppError;
-use models::game::{DisplayMode, ScrapedMetadataResponse, EditGameRequest, SubmitGameRequest};
+use models::game::{EditGameRequest, ScrapedMetadataResponse, SubmitGameRequest};
 use serde::Deserialize;
 use services::db::DbService;
 use services::scraper::ScraperService;
-
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-use jsonwebtoken::{decode, decode_header, DecodingKey, Validation, Algorithm};
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use tokio::sync::RwLock;
-
-#[derive(Debug, Deserialize)]
-pub struct FirebaseToken {
-    pub uid: String,
-    pub email: Option<String>,
-    pub name: Option<String>,
-}
-
-static JWKS: Lazy<Arc<RwLock<HashMap<String, String>>>> = Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
-
-async fn fetch_jwks() -> Option<HashMap<String, String>> {
-    let url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com";
-    let res = reqwest::get(url).await.ok()?;
-    res.json().await.ok()
-}
-
-async fn verify_firebase_token(token: &str) -> Result<FirebaseToken, String> {
-    let header = decode_header(token).map_err(|e| e.to_string())?;
-    let kid = header.kid.ok_or_else(|| "No kid in token".to_string())?;
-    
-    let mut cert = {
-        let cache = JWKS.read().await;
-        cache.get(&kid).cloned()
-    };
-    
-    if cert.is_none() {
-        if let Some(keys) = fetch_jwks().await {
-            let mut cache = JWKS.write().await;
-            *cache = keys;
-            cert = cache.get(&kid).cloned();
-        }
-    }
-    
-    let cert = cert.ok_or_else(|| "Unknown kid".to_string())?;
-    let decoding_key = DecodingKey::from_rsa_pem(cert.as_bytes()).map_err(|e| e.to_string())?;
-    let mut validation = Validation::new(Algorithm::RS256);
-    validation.validate_exp = true;
-    validation.set_audience(&["bagame-8477b"]);
-    validation.set_issuer(&["https://securetoken.google.com/bagame-8477b"]);
-    
-    let decoded_token = decode::<serde_json::Value>(token, &decoding_key, &validation).map_err(|e| e.to_string())?;
-    
-    let claims = decoded_token.claims;
-    Ok(FirebaseToken {
-        uid: claims.get("user_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        email: claims.get("email").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        name: claims.get("name").and_then(|v| v.as_str()).map(|s| s.to_string()),
-    })
-}
 
 pub struct AppState {
     pub db: DbService,
@@ -87,39 +32,35 @@ async fn main() {
         ))
         .with(tracing_subscriber::fmt::layer())
         .init();
-        
-    dotenvy::dotenv().ok();
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/bagame".to_string());
 
-    let db = DbService::new(&database_url).await;
+    let db = DbService::new(PathBuf::from("games_data.json"));
     let scraper = ScraperService::new();
+
     let state = Arc::new(AppState { db, scraper });
 
     let cors = CorsLayer::new()
-        .allow_origin(Any) // Should be locked down to specific frontend origin in production
-        .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT, Method::OPTIONS])
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::OPTIONS])
         .allow_headers(Any);
 
     let app = Router::new()
         .route("/api/health", get(health_check))
         .route("/api/games", get(list_games))
         .route("/api/games/:id", get(get_game))
+        .route("/api/games/:id", put(edit_game))
         .route("/api/games/scrape", post(scrape_url_preview))
         .route("/api/games/submit", post(submit_game))
-        .route("/api/games/:id", delete(delete_game))
-        .route("/api/games/:id", put(edit_game))
         .route("/api/games/:id/view", post(increment_view))
         .route("/api/games/:id/like", post(increment_like))
-        .nest_service("/public", ServeDir::new("public"))
         .layer(cors)
-        .layer(DefaultBodyLimit::max(1024 * 1024 * 5)) // 5 MB body size limit
         .with_state(state);
 
+    // Render (and other container platforms) route traffic through the port they
+    // provide and can only reach a process listening on all network interfaces.
     let port = std::env::var("PORT")
-        .unwrap_or_else(|_| "8000".to_string())
-        .parse::<u16>()
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(8000);
-        
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("🎮 Web Game Aggregator Backend running on http://{}", addr);
 
@@ -144,19 +85,19 @@ struct ListQuery {
 async fn list_games(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ListQuery>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let games = state.db.list_games(query.tag, query.search).await?;
-    Ok(Json(serde_json::json!({
+) -> Json<serde_json::Value> {
+    let games = state.db.list_games(query.tag, query.search);
+    Json(serde_json::json!({
         "count": games.len(),
         "games": games
-    })))
+    }))
 }
 
 async fn get_game(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let game = state.db.get_game(&id).await?;
+    let game = state.db.get_game(&id)?;
     Ok(Json(serde_json::json!({ "game": game })))
 }
 
@@ -178,71 +119,57 @@ async fn scrape_url_preview(
 
 async fn submit_game(
     State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
     Json(payload): Json<SubmitGameRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
-    if auth.is_none() || !auth.unwrap().starts_with("Bearer ") {
-        return Err(AppError::Unauthorized("Missing or invalid authorization token".to_string()));
-    }
-    
-    let token = auth.unwrap().trim_start_matches("Bearer ");
-    let token_payload = verify_firebase_token(token).await.map_err(|e| {
-        AppError::Unauthorized(format!("Invalid token payload: {}", e))
-    })?;
-
-    if let Some(email) = &token_payload.email {
-        if !email.ends_with("@rmuti.ac.th") {
-            return Err(AppError::Unauthorized("Email must be @rmuti.ac.th".to_string()));
-        }
-    } else {
-        return Err(AppError::Unauthorized("No email in token".to_string()));
-    }
-
-    let url = payload.url.trim();
-    if url.is_empty() {
-        return Err(AppError::InvalidUrl("URL cannot be empty".to_string()));
-    }
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err(AppError::InvalidUrl("URL must start with http:// or https://".to_string()));
-    }
-    if url.contains("itch.io") && !url.contains("itch.io/embed") && !url.contains("itch.io/html") {
-        return Err(AppError::InvalidUrl("สำหรับ itch.io โปรดใช้ Embed URL (เช่น https://itch.io/embed-upload/...) หรือโค้ด iframe แทนหน้าเกมปกติ".to_string()));
-    }
-
-    if let Some(embed) = &payload.embed_code {
-        let embed_trim = embed.trim();
-        if embed_trim.starts_with("<iframe") {
-            if !embed_trim.contains("src=\"") && !embed_trim.contains("src='") {
-                return Err(AppError::InvalidUrl("ไม่สามารถดึง URL จากโค้ด iframe ได้ กรุณาตรวจสอบว่ามี src attribute".to_string()));
-            }
-        }
-    }
-
     let scraped = state.scraper.scrape(&payload.url).await?;
 
     let title = payload.custom_title.unwrap_or(scraped.title);
     let description = payload.custom_description.unwrap_or(scraped.description);
     let tags = payload.custom_tags.unwrap_or(scraped.tags);
-    let creator_id = token_payload.uid;
-
-    let thumbnail_url = payload.custom_thumbnail_url.unwrap_or(scraped.thumbnail_url);
+    let creator_id = payload
+        .creator_id
+        .unwrap_or_else(|| "community_guest".to_string());
 
     let game = state.db.insert_game(
         title,
         description,
         payload.url,
         payload.embed_code,
-        thumbnail_url,
+        payload
+            .custom_thumbnail_url
+            .unwrap_or(scraped.thumbnail_url),
         creator_id,
         scraped.display_mode,
         tags,
         payload.manual_url,
         payload.website_url,
-    ).await?;
+    )?;
 
     Ok(Json(serde_json::json!({
         "message": "Game submitted successfully",
+        "game": game
+    })))
+}
+
+async fn edit_game(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(payload): Json<EditGameRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let game = state.db.update_game(
+        &id,
+        payload.custom_title,
+        payload.custom_description,
+        payload.url,
+        payload.embed_code,
+        payload.custom_thumbnail_url,
+        payload.custom_tags,
+        payload.manual_url,
+        payload.website_url,
+    )?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Game updated successfully",
         "game": game
     })))
 }
@@ -251,7 +178,7 @@ async fn increment_view(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let game = state.db.increment_views(&id).await?;
+    let game = state.db.increment_views(&id)?;
     Ok(Json(serde_json::json!({ "game": game })))
 }
 
@@ -259,90 +186,6 @@ async fn increment_like(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let game = state.db.increment_likes(&id).await?;
+    let game = state.db.increment_likes(&id)?;
     Ok(Json(serde_json::json!({ "game": game })))
-}
-
-async fn edit_game(
-    State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
-    Path(id): Path<String>,
-    Json(payload): Json<EditGameRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
-    if auth.is_none() || !auth.unwrap().starts_with("Bearer ") {
-        return Err(AppError::Unauthorized("Missing or invalid authorization token".to_string()));
-    }
-    
-    let token = auth.unwrap().trim_start_matches("Bearer ");
-    let token_payload = verify_firebase_token(token).await.map_err(|e| {
-        AppError::Unauthorized(format!("Invalid token payload: {}", e))
-    })?;
-
-    if let Some(email) = &token_payload.email {
-        if !email.ends_with("@rmuti.ac.th") {
-            return Err(AppError::Unauthorized("Email must be @rmuti.ac.th".to_string()));
-        }
-    } else {
-        return Err(AppError::Unauthorized("No email in token".to_string()));
-    }
-
-    let is_admin = match &token_payload.email {
-        Some(e) => e == "patiphan@rmuti.ac.th" || e == "admin@rmuti.ac.th",
-        None => false,
-    };
-
-    let game = state.db.get_game(&id).await?;
-    if game.creator_id != token_payload.uid && !is_admin {
-        return Err(AppError::Unauthorized("You do not have permission to edit this game".to_string()));
-    }
-
-    let updated_game = state.db.update_game(
-        &id,
-        payload.custom_title,
-        payload.custom_description,
-        payload.url,
-        Some(payload.embed_code),
-        payload.custom_thumbnail_url,
-        payload.custom_tags,
-        Some(payload.manual_url),
-        Some(payload.website_url),
-    ).await?;
-
-    Ok(Json(serde_json::json!({
-        "message": "Game updated successfully",
-        "game": updated_game
-    })))
-}
-
-async fn delete_game(
-    State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
-    Path(id): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let auth = headers.get("Authorization").and_then(|v| v.to_str().ok());
-    if auth.is_none() || !auth.unwrap().starts_with("Bearer ") {
-        return Err(AppError::Unauthorized("Missing or invalid authorization token".to_string()));
-    }
-    
-    let token = auth.unwrap().trim_start_matches("Bearer ");
-    let token_payload = verify_firebase_token(token).await.map_err(|e| {
-        AppError::Unauthorized(format!("Invalid token payload: {}", e))
-    })?;
-
-    let is_admin = match &token_payload.email {
-        Some(e) => e == "patiphan@rmuti.ac.th" || e == "admin@rmuti.ac.th",
-        None => false,
-    };
-
-    let game = state.db.get_game(&id).await?;
-    if game.creator_id != token_payload.uid && !is_admin {
-        return Err(AppError::Unauthorized("You do not have permission to delete this game".to_string()));
-    }
-
-    let game = state.db.delete_game(&id).await?;
-    Ok(Json(serde_json::json!({
-        "message": "Game deleted successfully",
-        "game": game
-    })))
 }

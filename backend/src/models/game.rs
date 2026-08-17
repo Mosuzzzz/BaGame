@@ -60,15 +60,16 @@ pub struct SubmitGameRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct EditGameRequest {
-    pub custom_title: Option<String>,
-    pub custom_description: Option<String>,
     pub url: Option<String>,
     pub embed_code: Option<String>,
+    pub custom_title: Option<String>,
+    pub custom_description: Option<String>,
     pub custom_tags: Option<Vec<String>>,
     pub custom_thumbnail_url: Option<String>,
     pub manual_url: Option<String>,
     pub website_url: Option<String>,
 }
+
 #[derive(Debug, Serialize)]
 pub struct ScrapedMetadataResponse {
     pub title: String,

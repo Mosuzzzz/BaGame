@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y libssl-dev ca-certificates && rm -rf /v
 WORKDIR /app
 
 # Copy the binary from the builder stage
-COPY --from=builder /usr/src/app/target/release/backend /app/bagame-backend
+COPY --from=builder /usr/src/app/target/release/game_platform_backend /app/bagame-backend
 
 # Expose the port the app runs on
 EXPOSE 8000

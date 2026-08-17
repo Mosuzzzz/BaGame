@@ -128,13 +128,12 @@ export default function EditGamePage() {
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
       const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
       
-      if (!cloudName || !uploadPreset) {
-        throw new Error('Cloudinary config is missing in .env.local');
-      }
-
       // Upload Cover Image
       let custom_thumbnail_url = existingThumbnailUrl || '';
       if (coverImage) {
+        if (!cloudName || !uploadPreset) {
+          throw new Error('Cloudinary config is missing in .env.local');
+        }
         const coverFormData = new FormData();
         coverFormData.append('file', coverImage);
         coverFormData.append('upload_preset', uploadPreset);
@@ -202,8 +201,6 @@ export default function EditGamePage() {
       </div>
     );
   }
-
-  if (isFetching) return <div className="flex items-center justify-center min-h-screen"><p className="text-white">Loading...</p></div>;
 
   if (isFetching) return <div className="flex items-center justify-center min-h-screen"><p className="text-white">Loading...</p></div>;
 

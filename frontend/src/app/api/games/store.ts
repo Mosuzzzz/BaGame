@@ -1,15 +1,24 @@
 import { GameDocument, DisplayMode, ScrapedMetadata } from '@/types/game';
-import { getCloudGames, deleteCloudGame, addCloudGame, incrementCloudGameMetrics, SEED_GAMES } from '@/lib/db';
+import { getCloudGames, deleteCloudGame, saveCloudGames, SEED_GAMES } from '@/lib/db';
+import crypto from 'crypto';
+
+// SHA-256 Hash of "67morethen66"
+export const ADMIN_PASSWORD_HASH = 'b9982e40e58fffb52a1df3c6da5dc2f5c7c260c3881bd68f667a8e301c92a821';
 
 export function hashString(input: string): string {
-  // Keeping this if needed elsewhere, though auth is moving to Firebase
-  return input; 
+  if (!input) return '';
+  if (input.length === 64 && /^[a-f0-9]+$/i.test(input)) {
+    return input.toLowerCase(); // Already SHA-256 hash
+  }
+  return crypto.createHash('sha256').update(input).digest('hex').toLowerCase();
 }
 
 const BLOCKED_KEYWORDS = [
+  // Gambling / Casino keywords
   'casino', 'slot', 'baccarat', 'pgslot', 'pg-slot', 'bet', 'gambling', 'poker', 'hilo',
   'แทงบอล', 'สล็อต', 'คาสิโน', 'บาคาร่า', 'หวย', 'ufabet', '777', '888', 'vipbet', 'bk8',
   'w88', 'fun88', 'm88', 'sa gaming', 'sexy baccarat', 'เว็บพนัน', 'แทงหวย', 'พนัน',
+  // Adult / NSFW keywords
   'porn', 'xxx', 'adult', 'hentai', 'nsfw', 'sex', 'erotic', 'xvideos', 'pornhub', 'xnxx', '18+'
 ];
 
@@ -20,7 +29,7 @@ export function checkUrlSafety(url: string, htmlContent?: string): { safe: boole
     if (lowerUrl.includes(kw)) {
       return {
         safe: false,
-        reason: `⚠️ ระบบปฏิเสธ URL นี้: ตรวจพบคำต้องห้าม "${kw}"`,
+        reason: `⚠️ ระบบปฏิเสธ URL นี้: ตรวจพบคำต้องห้าม "${kw}" (ไม่อนุญาตเว็บพนัน สล็อต หรือสื่อไม่เหมาะสม)`,
       };
     }
   }
@@ -40,23 +49,63 @@ export function checkUrlSafety(url: string, htmlContent?: string): { safe: boole
   return { safe: true };
 }
 
+let inMemoryGames: GameDocument[] = [];
+
 export async function getStore(): Promise<GameDocument[]> {
-  return await getCloudGames();
+  try {
+    const cloud = await getCloudGames();
+    if (cloud) {
+      inMemoryGames = cloud;
+    }
+  } catch (e) {}
+  return inMemoryGames;
 }
 
 export async function addGame(game: GameDocument): Promise<GameDocument> {
   game.display_mode = 'EMBEDDED';
-  await addCloudGame(game);
+  inMemoryGames.unshift(game);
+  try {
+    await saveCloudGames(inMemoryGames);
+  } catch (e) {}
   return game;
 }
 
-export async function deleteGame(id: string): Promise<boolean> {
-  await deleteCloudGame(id);
-  return true;
+export async function deleteGame(id: string, passOrHash: string): Promise<boolean> {
+  if (!passOrHash) return false;
+  
+  const inputHash = hashString(passOrHash);
+  const isValidAdmin =
+    inputHash === ADMIN_PASSWORD_HASH ||
+    passOrHash === '67morethen66' ||
+    passOrHash === ADMIN_PASSWORD_HASH;
+
+  if (!isValidAdmin) {
+    return false;
+  }
+
+  const currentStore = await getStore();
+  const initialLen = currentStore.length;
+  const updatedGames = currentStore.filter((g) => g.id !== id);
+  inMemoryGames = updatedGames;
+
+  try {
+    await deleteCloudGame(id);
+    await saveCloudGames(updatedGames);
+  } catch (e) {}
+
+  return updatedGames.length < initialLen || initialLen > 0;
 }
 
 export async function updateGameMetrics(id: string, viewInc = 0, likeInc = 0): Promise<GameDocument | null> {
-  return await incrementCloudGameMetrics(id, viewInc, likeInc);
+  const games = await getStore();
+  const g = games.find((item) => item.id === id);
+  if (!g) return null;
+  g.metrics.views += viewInc;
+  g.metrics.likes += likeInc;
+  try {
+    await saveCloudGames(games);
+  } catch (e) {}
+  return g;
 }
 
 export async function scrapeUrl(targetUrl: string): Promise<ScrapedMetadata> {
@@ -70,20 +119,9 @@ export async function scrapeUrl(targetUrl: string): Promise<ScrapedMetadata> {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WebGameAggregator/1.0',
       },
-      signal: AbortSignal.timeout(8000)
     });
 
-    // Limit response size manually if possible (Not fully possible with fetch text() out of the box, 
-    // but we can check Content-Length)
-    const contentLength = res.headers.get('content-length');
-    if (contentLength && parseInt(contentLength, 10) > 10 * 1024 * 1024) {
-      throw new Error('Response is too large');
-    }
-
     const html = await res.text();
-    if (html.length > 10 * 1024 * 1024) {
-      throw new Error('Response is too large');
-    }
 
     const htmlCheck = checkUrlSafety(targetUrl, html);
     if (!htmlCheck.safe) {
